@@ -1,93 +1,91 @@
-/* Project status view — projects × phases matrix */
+/* Project Status View — grid of 12 projects × 9 phases + countdown */
 
-(function () {
-  "use strict";
+window.renderStatusView = function(host) {
+  const phases = window.DASHBOARD_PHASES;
+  const projects = window.DASHBOARD_PROJECTS;
+  const cd = window.DASHBOARD_COUNTDOWN;
 
-  function shortPhaseLabel(name) {
-    // Compact phase header: take first letter of each word, max 3 chars
-    return name.split(/\s+/).map((w) => w[0]).join("").slice(0, 3).toUpperCase();
-  }
+  const daysLeft = Math.ceil((cd.target - new Date()) / (1000 * 60 * 60 * 24));
 
-  function fmtDelta(d) {
-    if (!d) return "";
-    if (d > 0) return "+" + d + "d";
-    return d + "d";
-  }
+  // Header row
+  let headHtml = `<div class="ps-head">Project</div>`;
+  phases.forEach((p, i) => {
+    headHtml += `<div class="ps-head num"><span class="i">P${String(i+1).padStart(2,"0")}</span><span>${p}</span></div>`;
+  });
+  headHtml += `<div class="ps-head">Overall</div>`;
 
-  function escape(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
-  }
+  // Project rows
+  const rowsHtml = projects.map(proj => {
+    const phaseCells = proj.phases.map((ph, idx) => {
+      const statusLabel = ({
+        idle: "Not started",
+        ok: "On track",
+        warn: "Tight",
+        bad: "Over",
+        done: "Complete",
+      })[ph.s];
+      const daysText = ph.s === "done" ? "✓"
+        : ph.s === "idle" ? "—"
+        : ph.d < 0 ? `+${Math.abs(ph.d)}d over`
+        : `${ph.d}d left`;
+      return `
+        <div class="ps-cell ps-phase s-${ph.s}">
+          <div class="ps-phase-bar"><div class="fill" style="width:${Math.round(ph.p * 100)}%"></div></div>
+          <div class="ps-phase-status"><span class="dot"></span><span>${statusLabel}</span></div>
+          <div class="ps-phase-days">${daysText}</div>
+        </div>
+      `;
+    }).join("");
 
-  function render(host, data) {
-    const projects = data.projects || [];
-    const phases   = data.phases   || [];
+    return `
+      <div class="ps-cell ps-project">
+        <div class="ps-project-code">${proj.code}</div>
+        <div class="ps-project-name">${proj.name}</div>
+      </div>
+      ${phaseCells}
+      <div class="ps-cell ps-summary s-${proj.status}">
+        <div class="ps-summary-pct">${Math.round(proj.overall * 100)}%</div>
+        <div class="ps-summary-bar"><div class="fill" style="width:${Math.round(proj.overall * 100)}%"></div></div>
+        <div class="ps-summary-status">${({ok:"On Track",warn:"At Risk",bad:"Behind",done:"Delivered"})[proj.status]}</div>
+      </div>
+    `;
+  }).join("");
 
-    const counts = {
-      ok:   projects.filter((p) => p.status === "ok").length,
-      warn: projects.filter((p) => p.status === "warn").length,
-      bad:  projects.filter((p) => p.status === "bad").length,
-    };
+  host.innerHTML = `
+    <div class="ps">
+      <div class="ps-header">
+        <div>
+          <h2 class="ps-title">Project <em>Status</em></h2>
+          <div class="ps-sub">${projects.length} active programs · ${phases.length}-phase pipeline · refreshed live</div>
+        </div>
 
-    const summary =
-      '<span class="cal-legend">' +
-        '<span class="cal-legend-item"><span class="cal-legend-swatch" style="background:var(--ok)"></span>' + counts.ok + ' OK</span>' +
-        '<span class="cal-legend-item"><span class="cal-legend-swatch" style="background:var(--warn)"></span>' + counts.warn + ' Warn</span>' +
-        '<span class="cal-legend-item"><span class="cal-legend-swatch" style="background:var(--bad)"></span>' + counts.bad + ' Risk</span>' +
-      '</span>';
+        <div class="ps-countdown">
+          <div class="ps-countdown-label">
+            <div class="k">${cd.label}</div>
+            <div class="v">${cd.targetLabel}</div>
+          </div>
+          <div class="ps-countdown-days">
+            <div class="ps-countdown-num">${Math.max(0, daysLeft)}</div>
+            <div class="ps-countdown-unit">
+              Days<br/>Remaining
+            </div>
+          </div>
+        </div>
+      </div>
 
-    let head = '<div class="stv-head"><div>Project</div><div>Code</div>';
-    phases.forEach((ph) => {
-      head += '<div title="' + escape(ph) + '">' + shortPhaseLabel(ph) + '</div>';
-    });
-    head += '<div>Overall</div></div>';
+      <div class="ps-board" style="grid-template-rows: 64px repeat(${projects.length}, 1fr);">
+        ${headHtml}
+        ${rowsHtml}
+      </div>
 
-    let body = '<div class="stv-body">';
-    projects.forEach((p) => {
-      body += '<div class="stv-row">';
-      body += '<div class="stv-name"><div class="stv-name-label">' + escape(p.name) + '</div></div>';
-      body += '<div class="stv-code">' + escape(p.code || "") + '</div>';
-
-      (p.phases || []).forEach((cell) => {
-        const s = cell.s || "idle";
-        const d = cell.d || 0;
-        const sym = ({
-          done: "■",
-          ok:   "●",
-          warn: "▲",
-          bad:  "✕",
-          idle: "·",
-        })[s] || "·";
-        const deltaCls = d < 0 ? "neg" : (d > 0 ? "pos" : "");
-        const deltaTxt = d ? '<span class="stv-pip-delta ' + deltaCls + '">' + fmtDelta(d) + '</span>' : "";
-        body += '<div class="stv-cell">' +
-                  '<div class="stv-pip s-' + s + '">' + sym + '</div>' +
-                  deltaTxt +
-                '</div>';
-      });
-
-      const overallPct = Math.round((p.overall || 0) * 100);
-      body += '<div class="stv-overall s-' + (p.status || "ok") + '">' +
-                overallPct + '%' +
-                '<div class="bar"><span style="width:' + overallPct + '%"></span></div>' +
-              '</div>';
-
-      body += '</div>';
-    });
-    body += '</div>';
-
-    host.innerHTML =
-      '<div class="view-title">' +
-        '<h2>Project Status</h2>' +
-        '<span class="view-sub">' + projects.length + ' active</span>' +
-        '<span class="spacer"></span>' +
-        summary +
-      '</div>' +
-      '<div class="stv">' +
-        '<div class="stv-table">' + head + body + '</div>' +
-      '</div>';
-  }
-
-  window.StatusView = { render };
-})();
+      <div class="ps-legend">
+        <div class="ps-legend-item"><div class="ps-legend-swatch" style="background: var(--idle)"></div>Not started</div>
+        <div class="ps-legend-item"><div class="ps-legend-swatch" style="background: var(--ok)"></div>On track</div>
+        <div class="ps-legend-item"><div class="ps-legend-swatch" style="background: var(--warn)"></div>Tight</div>
+        <div class="ps-legend-item"><div class="ps-legend-swatch" style="background: var(--bad)"></div>Over budget</div>
+        <div class="ps-legend-item"><div class="ps-legend-swatch" style="background: var(--done)"></div>Complete</div>
+        <div style="margin-left:auto;">Updated ${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</div>
+      </div>
+    </div>
+  `;
+};

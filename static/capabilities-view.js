@@ -1,73 +1,77 @@
-/* Capabilities view — capability cards with task checklists */
+/* Capabilities View — 12 cards with task lists; completed tasks hidden */
 
-(function () {
-  "use strict";
+window.renderCapabilitiesView = function(host) {
+  const caps = window.DASHBOARD_CAPABILITIES;
 
-  function escape(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
-  }
+  // Overall stats
+  const totalTasks = caps.reduce((s, c) => s + c.tasks.length, 0);
+  const doneTasks = caps.reduce((s, c) => s + c.tasks.filter(t => t.done).length, 0);
+  const overallPct = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-  function render(host, data) {
-    const caps = data.capabilities || [];
+  const cardHtml = caps.map((cap, idx) => {
+    const done = cap.tasks.filter(t => t.done).length;
+    const total = cap.tasks.length;
+    const pct = total ? (done / total) * 100 : 0;
+    const isDone = done === total;
 
-    const totals = caps.reduce(
-      (acc, c) => {
-        const t = c.tasks || [];
-        acc.total += t.length;
-        acc.done  += t.filter((x) => x.done).length;
-        return acc;
-      },
-      { total: 0, done: 0 }
-    );
+    const remaining = cap.tasks.filter(t => !t.done);
 
-    const overallPct = totals.total ? Math.round((totals.done / totals.total) * 100) : 0;
+    // First incomplete task is the "active" one
+    const tasksHtml = isDone
+      ? `<div class="cap-card-empty"><span>All tasks complete</span></div>`
+      : `<div class="cap-card-tasks">
+          ${remaining.slice(0, 5).map((task, i) => `
+            <div class="cap-task ${i === 0 ? "is-active" : ""}">
+              <div class="cap-task-box"></div>
+              <div class="cap-task-name">${task.name}</div>
+              <div class="cap-task-owner">${task.owner}</div>
+            </div>
+          `).join("")}
+          ${remaining.length > 5
+            ? `<div class="cap-task"><div></div><div class="cap-task-name" style="color:var(--fg-3);font-family:var(--font-mono);font-size:13px;letter-spacing:0.2em;">+ ${remaining.length - 5} more</div><div></div></div>`
+            : ""}
+        </div>`;
 
-    let cards = '<div class="capv-grid">';
-    caps.forEach((c) => {
-      const tasks = c.tasks || [];
-      const doneCount = tasks.filter((t) => t.done).length;
-      const pct = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0;
+    return `
+      <div class="cap-card ${isDone ? "is-done" : ""}">
+        <div class="cap-card-h">
+          <div class="cap-card-idx">${String(idx + 1).padStart(2,"0")}</div>
+          <div class="cap-card-name">
+            <span class="code">${cap.code}</span>
+            ${cap.name}
+          </div>
+          <div class="cap-card-count">
+            <span class="done">${done}</span>
+            <span class="sep">/</span>
+            <span class="tot">${total}</span>
+          </div>
+        </div>
+        <div class="cap-card-prog"><div class="fill" style="width:${pct}%"></div></div>
+        ${tasksHtml}
+      </div>
+    `;
+  }).join("");
 
-      cards += '<div class="cap-card">';
-      cards +=   '<div class="cap-card-head">' +
-                   '<div class="cap-card-name">' + escape(c.name) + '</div>' +
-                   '<div class="cap-card-code">' + escape(c.code || "") + '</div>' +
-                 '</div>';
-      cards +=   '<div class="cap-card-progress">' +
-                   '<div class="bar"><span style="width:' + pct + '%"></span></div>' +
-                   '<div class="count">' + doneCount + '/' + tasks.length + '</div>' +
-                 '</div>';
+  host.innerHTML = `
+    <div class="cap">
+      <div class="cap-header">
+        <div>
+          <h2 class="cap-title">New <em>Capabilities</em></h2>
+          <div class="cap-sub">${caps.length} in flight · ${totalTasks - doneTasks} open tasks · completed tasks hidden</div>
+        </div>
+        <div class="cap-meter">
+          <div>
+            <div class="cap-meter-label">Portfolio Progress</div>
+            <div class="cap-meter-num"><em>${doneTasks}</em> / ${totalTasks}</div>
+          </div>
+          <div class="cap-meter-bar"><div class="fill" style="width:${overallPct}%"></div></div>
+          <div class="cap-meter-num" style="font-size:48px;"><em>${overallPct}%</em></div>
+        </div>
+      </div>
 
-      cards += '<ul class="cap-tasks">';
-      tasks.forEach((t) => {
-        cards += '<li class="cap-task' + (t.done ? " done" : "") + '">' +
-                   '<div class="cap-task-box"></div>' +
-                   '<div class="cap-task-name">' + escape(t.name) + '</div>' +
-                   '<div class="cap-task-owner">' + escape(t.owner || "") + '</div>' +
-                 '</li>';
-      });
-      cards += '</ul>';
-
-      cards += '</div>';
-    });
-    cards += '</div>';
-
-    const summary = '<span class="cal-legend">' +
-      '<span class="cal-legend-item"><span class="cal-legend-swatch" style="background:var(--ok)"></span>' +
-        totals.done + '/' + totals.total + ' tasks · ' + overallPct + '%</span>' +
-      '</span>';
-
-    host.innerHTML =
-      '<div class="view-title">' +
-        '<h2>Capabilities</h2>' +
-        '<span class="view-sub">' + caps.length + ' tracked</span>' +
-        '<span class="spacer"></span>' +
-        summary +
-      '</div>' +
-      '<div class="capv">' + cards + '</div>';
-  }
-
-  window.CapabilitiesView = { render };
-})();
+      <div class="cap-grid">
+        ${cardHtml}
+      </div>
+    </div>
+  `;
+};

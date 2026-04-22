@@ -3,7 +3,8 @@
 A self-contained, full-screen TV/monitor dashboard for the TackEff Group.
 
 - **Backend:** single-file Python 3 HTTP server (`server.py`), stdlib only.
-- **Frontend:** plain HTML/CSS/JS, no CDN, no build step, no internet.
+- **Frontend:** plain HTML/CSS/JS, no CDN, no build step, no internet at runtime.
+- **Design:** fixed 3840×2160 canvas, JS-scaled to fit any viewport (works great on 1080p and 4K TVs).
 - **Fonts:** Inter Tight + JetBrains Mono embedded as base64 in `static/fonts.css` (~360 KB).
 - **Data:** rendered from `/api/data` — config + iCal-fetched events + project/capability JSON.
 
@@ -14,11 +15,12 @@ Designed for Debian 13. No `pip install` required.
 ## Quick start
 
 ```bash
-cd dashboard
+cd BackToWork
 python3 server.py
+# → http://localhost:8181
 ```
 
-Then open `http://localhost:8181` in a browser.
+First-run tip: `config/config.json` ships pointing at the local `static/sample.ics` so the dashboard has content immediately. Replace that URL with your real iCal feed(s) when ready.
 
 To run on a TV: open the URL in fullscreen kiosk mode (e.g. `chromium --kiosk http://dash-host:8181`).
 
@@ -27,22 +29,25 @@ To run on a TV: open the URL in fullscreen kiosk mode (e.g. `chromium --kiosk ht
 ## File layout
 
 ```
-dashboard/
+BackToWork/
 ├── server.py                    # The whole server. Run this.
+├── generate_fonts.py            # One-shot fonts.css rebuilder (needs internet).
 ├── README.md
 ├── config/
-│   ├── config.json              # Port, ical URLs, countdown, refresh interval
+│   ├── config.json              # Port, iCal URLs, countdown, refresh interval
 │   ├── projects.json            # Project Status view data
 │   └── capabilities.json        # Capabilities view data
 └── static/
     ├── index.html
-    ├── fonts.css                # Embedded fonts (auto-generated, base64)
-    ├── styles.css
-    ├── dashboard.js             # Rotator + data loader
-    ├── calendar-view.js
-    ├── status-view.js
-    ├── capabilities-view.js
-    └── tweaks.js                # Press 't' in the UI to open
+    ├── fonts.css                # Embedded fonts (base64)
+    ├── styles.css               # 4K canvas styles
+    ├── data-loader.js           # Fetches /api/data, injects other scripts
+    ├── dashboard.js             # Shell + rotator + stage scaling
+    ├── calendar-view.js         # 14-day grid + upcoming sidebar
+    ├── status-view.js           # Projects × phases matrix + countdown
+    ├── capabilities-view.js     # Capability cards + task lists
+    ├── tweaks.js                # Runtime tweaks panel (press 't')
+    └── sample.ics               # Demo calendar data
 ```
 
 ---
@@ -69,7 +74,7 @@ dashboard/
 }
 ```
 
-- **`ical_urls`** — list of strings or `{url, category}` objects. `category` (1–5) controls the event color on the calendar (1=Sync, 2=Review, 3=External, 4=Field, 5=Offsite).
+- **`ical_urls`** — list of strings or `{url, category}` objects. `category` (1–5) controls event color: 1=Sync, 2=Review, 3=External, 4=Field, 5=Offsite.
 - **`reload_interval_seconds`** — background refresh cadence for iCal sources. The UI **Reload** button forces an immediate refresh regardless.
 - **`countdown.target`** — ISO date. Leave empty (`""`) to hide the countdown.
 
@@ -84,33 +89,48 @@ The config file is **live-reloaded** — edit and save; the server picks up the 
 | Method | Path           | Purpose                                       |
 |--------|----------------|-----------------------------------------------|
 | GET    | `/`            | Dashboard UI                                  |
-| GET    | `/api/data`    | All view data (events, projects, etc.) as JSON |
+| GET    | `/api/data`    | All view data as JSON                          |
 | GET    | `/api/config`  | Public config snapshot                         |
-| POST   | `/api/reload`  | Force re-fetch all iCal sources + bust caches  |
-| GET    | `/api/reload`  | Same as POST (for convenience)                 |
+| GET    | `/api/reload`  | Force re-fetch all iCal sources + bust caches  |
+| POST   | `/api/reload`  | Same                                           |
 | GET    | `/<file>`      | Static files from `static/` (path-traversal blocked) |
 
 ---
 
-## Keyboard shortcuts
+## Keyboard shortcuts & footer controls
 
-| Key            | Action                  |
-|----------------|-------------------------|
-| `←` / `p`      | Previous view           |
-| `→` / `n`      | Next view               |
-| `Space`        | Pause / resume rotation |
-| `r`            | Reload data             |
-| `t`            | Toggle tweaks panel     |
+| Key / button       | Action                  |
+|--------------------|-------------------------|
+| `←`                | Previous view           |
+| `→`                | Next view               |
+| `Space`            | Pause / resume rotation |
+| `t`                | Toggle tweaks panel     |
+| Footer `↻ Reload`  | Force re-fetch data     |
+| Footer dots        | Jump directly to a view |
 
-The footer has buttons for the same actions, plus per-view dots.
+The footer auto-hides 3 seconds after the last mouse move.
+
+---
+
+## Tweaks panel (press `t`)
+
+Runtime-adjustable, saved to `localStorage`:
+
+- **Rotation speed** (10–180s per view)
+- **Accent color** (6 presets)
+- **Clock display** (prominent / subtle / off)
+- **Density** (compact / normal / roomy)
+- **Pause / play** + manual next/prev
+- **View order** — reorder the three views
 
 ---
 
 ## Notes & limits
 
 - **iCal parser** handles plain `VEVENT` blocks with `DTSTART`/`DTEND`/`DURATION`/`SUMMARY`/`LOCATION`/`DESCRIPTION` and basic `TZID=` parameters. It does **not** expand recurring events (`RRULE`) — if you need that, point the URL at a service that pre-expands them, or extend `_fetch_ical` in `server.py`.
-- **Fonts** are committed pre-embedded so the dashboard works fully offline. To regenerate them after editing the font set, see the comment block in `server.py` or re-run the embedding step.
+- **Fonts** are committed pre-embedded so the dashboard works fully offline. If you want to rebuild `static/fonts.css` (different weights, different fonts), edit and run `generate_fonts.py` (needs internet, one-time only).
 - **No auth.** Run on a trusted LAN, or front it with nginx + basic auth if you need to expose it.
+- **Threading:** the server uses `ThreadingHTTPServer` so it can serve concurrent requests and fetch iCal from itself (e.g. when pointed at the bundled `sample.ics`).
 
 ---
 
@@ -126,8 +146,8 @@ After=network-online.target
 [Service]
 Type=simple
 User=dashboard
-WorkingDirectory=/opt/tackeff-dashboard
-ExecStart=/usr/bin/python3 /opt/tackeff-dashboard/server.py
+WorkingDirectory=/opt/BackToWork
+ExecStart=/usr/bin/python3 /opt/BackToWork/server.py
 Restart=on-failure
 
 [Install]

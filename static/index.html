@@ -4,6 +4,8 @@
 <meta charset="utf-8"/>
 <title>TackEff — Group Dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+
+<!-- Self-contained fonts (Inter Tight + JetBrains Mono, base64 in CSS). No CDN. -->
 <link rel="stylesheet" href="fonts.css"/>
 <link rel="stylesheet" href="styles.css"/>
 </head>
@@ -29,8 +31,8 @@
 
       <div class="gh-right">
         <div class="gh-status">
-          <span class="dot" id="status-dot"></span>
-          <span id="status-label">Loading</span>
+          <span class="dot"></span>
+          <span>Live</span>
         </div>
         <div class="gh-clock">
           <div class="gh-clock-time" id="clock-time">—</div>
@@ -40,14 +42,7 @@
     </div>
 
     <!-- View area -->
-    <div class="view-host" id="view-host">
-      <div class="splash" id="splash">
-        <div class="splash-inner">
-          <div class="splash-logo"></div>
-          <div class="splash-text">Loading dashboard data…</div>
-        </div>
-      </div>
-    </div>
+    <div class="view-host" id="view-host"></div>
 
     <!-- Footer rotation controls -->
     <div class="gf" id="footer">
@@ -57,10 +52,10 @@
       </div>
       <div class="gf-center" id="footer-dots"></div>
       <div class="gf-right">
-        <button class="gf-btn" onclick="window.DashRotator.prev()">◂ Prev</button>
-        <button class="gf-btn" onclick="window.DashRotator.setPaused(!window.DashRotator.getState().paused)">Pause / Play</button>
-        <button class="gf-btn" onclick="window.DashRotator.next()">Next ▸</button>
-        <button class="gf-btn gf-btn-reload" id="reload-btn" onclick="window.reloadDashboardData()">↺ Reload</button>
+        <button class="gf-btn" onclick="window.DashRotator && window.DashRotator.prev()">◂ Prev</button>
+        <button class="gf-btn" onclick="window.DashRotator && window.DashRotator.setPaused(!window.DashRotator.getState().paused)">Pause / Play</button>
+        <button class="gf-btn" onclick="window.DashRotator && window.DashRotator.next()">Next ▸</button>
+        <button class="gf-btn" id="reload-btn" onclick="window.DashReload && window.DashReload()">↻ Reload</button>
       </div>
     </div>
 
@@ -70,12 +65,39 @@
 <!-- Tweaks panel -->
 <div class="tweaks" id="tweaks-panel"></div>
 
-<!-- Scripts — no CDN, all self-contained -->
-<script src="calendar-view.js"></script>
-<script src="status-view.js"></script>
-<script src="capabilities-view.js"></script>
-<script src="tweaks.js"></script>
-<script src="dashboard.js"></script>
+<!-- Scripts: data-loader first; it fetches /api/data then injects the other scripts in order. -->
+<style>
+  /* Stage-wrap must clip; explicit top-left origin for scaling means the stage
+     is absolutely positioned and we center it with translate() in JS. */
+  #stage-wrap { overflow: hidden; }
+  #stage {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform-origin: 0 0 !important;
+  }
+</style>
+<script>
+  /* Fit 3840×2160 canvas into the viewport. Applied synchronously so scaling
+     is right even before data-loader finishes fetching. dashboard.js re-runs
+     this on resize once it loads. */
+  (function () {
+    function fit() {
+      var st = document.getElementById("stage");
+      if (!st) return;
+      var sx = window.innerWidth / 3840;
+      var sy = window.innerHeight / 2160;
+      var s  = Math.min(sx, sy);
+      var tx = (window.innerWidth  - 3840 * s) / 2;
+      var ty = (window.innerHeight - 2160 * s) / 2;
+      st.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + s + ")";
+    }
+    fit();
+    window.addEventListener("resize", fit);
+    window.__fitStage = fit;
+  })();
+</script>
+<script src="data-loader.js"></script>
 
 </body>
 </html>

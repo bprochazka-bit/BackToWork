@@ -22,7 +22,7 @@
 
   "ical_urls": [
     {
-      "url": "",
+      "url": "http://127.0.0.1:8181/sample.ics",
       "category": 1,
       "_comment_category": "1=Sync 2=Review 3=External 4=Field 5=Offsite — controls event color"
     }

@@ -1,265 +1,214 @@
-/* TackEff Group Dashboard — main controller (rotator + data loader) */
+/* Dashboard shell + rotator */
 
-(function () {
-  "use strict";
+(function() {
+  const stageWrap = document.getElementById("stage-wrap");
+  const stage = document.getElementById("stage");
+  const viewHost = document.getElementById("view-host");
+  const footer = document.getElementById("footer");
+  const dotsEl = document.getElementById("footer-dots");
+  const progressFill = document.getElementById("progress-fill");
+  const viewNameEl = document.getElementById("view-name");
+  const viewIdxEl = document.getElementById("view-idx");
 
-  // ─── State ───────────────────────────────────────
-  const state = {
-    views: [],        // [{key, name, render}]
-    idx: 0,
-    paused: false,
-    tickMs: 100,
-    rotateMs: 30000,
-    elapsed: 0,
-    timer: null,
-    data: null,
-    lastRender: null, // currently mounted view key
-  };
-
-  // ─── DOM refs ────────────────────────────────────
-  const $ = (id) => document.getElementById(id);
-  const els = {
-    host:        $("view-host"),
-    splash:      $("splash"),
-    viewIdx:     $("view-idx"),
-    viewName:    $("view-name"),
-    statusDot:   $("status-dot"),
-    statusLabel: $("status-label"),
-    clockTime:   $("clock-time"),
-    clockDate:   $("clock-date"),
-    progressFill:$("progress-fill"),
-    footerDots:  $("footer-dots"),
-    reloadBtn:   $("reload-btn"),
-  };
-
-  // ─── Status pill ─────────────────────────────────
-  function setStatus(kind, label) {
-    els.statusDot.classList.remove("ok", "warn", "bad");
-    if (kind) els.statusDot.classList.add(kind);
-    els.statusLabel.textContent = label;
+  /* ---------- Scaling: fit 3840×2160 into viewport ---------- */
+  function fitStage() {
+    if (typeof window.__fitStage === "function") { window.__fitStage(); return; }
+    const sx = window.innerWidth / 3840;
+    const sy = window.innerHeight / 2160;
+    const s = Math.min(sx, sy);
+    const tx = (window.innerWidth  - 3840 * s) / 2;
+    const ty = (window.innerHeight - 2160 * s) / 2;
+    stage.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
   }
+  fitStage();
+  window.addEventListener("resize", fitStage);
 
-  // ─── Clock ───────────────────────────────────────
-  function pad(n) { return n < 10 ? "0" + n : "" + n; }
-  function tickClock() {
+  /* ---------- Clock ---------- */
+  const clockTime = document.getElementById("clock-time");
+  const clockDate = document.getElementById("clock-date");
+  function updateClock() {
     const d = new Date();
-    els.clockTime.textContent = pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
-    const days = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
-    const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-    els.clockDate.textContent = days[d.getDay()] + " " + pad(d.getDate()) + " " + months[d.getMonth()] + " " + d.getFullYear();
+    const h = d.getHours();
+    const m = String(d.getMinutes()).padStart(2, "0");
+    const s = String(d.getSeconds()).padStart(2, "0");
+    const ap = h >= 12 ? "PM" : "AM";
+    const h12 = (h % 12) || 12;
+    clockTime.textContent = `${h12}:${m}:${s} ${ap}`;
+    const DOW = ["SUN","MON","TUE","WED","THU","FRI","SAT"][d.getDay()];
+    const MON = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"][d.getMonth()];
+    clockDate.textContent = `${DOW} · ${MON} ${d.getDate()} · ${d.getFullYear()}`;
   }
-  setInterval(tickClock, 1000);
-  tickClock();
+  updateClock();
+  setInterval(updateClock, 1000);
 
-  // ─── Data fetch ──────────────────────────────────
-  async function fetchData() {
-    const resp = await fetch("/api/data", { cache: "no-store" });
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const json = await resp.json();
-    if (json.error) throw new Error(json.error);
-    return normalize(json);
+  /* ---------- Views registry (extensible) ---------- */
+  const VIEWS = {
+    calendar:     { name: "Calendar",        render: window.renderCalendarView },
+    status:       { name: "Project Status",  render: window.renderStatusView },
+    capabilities: { name: "Capabilities",    render: window.renderCapabilitiesView },
+  };
+  // Expose so new views can register later:
+  //   window.DashRotator.registerView('myId', {name: 'My View', render: (host) => {...}});
+
+  /* ---------- Rotator ---------- */
+  let order = ["calendar", "status", "capabilities"];
+  let cur = 0;
+  let interval = 60 * 1000;
+  let paused = false;
+  let timer = null;
+  let tickStart = 0;
+  let rafId = 0;
+
+  // Pre-build view containers (so transitions feel crisp)
+  const containers = {};
+  function ensureContainers() {
+    Object.keys(VIEWS).forEach(id => {
+      if (!containers[id]) {
+        const el = document.createElement("div");
+        el.className = "view";
+        el.id = `view-${id}`;
+        el.setAttribute("data-screen-label", VIEWS[id].name);
+        viewHost.appendChild(el);
+        containers[id] = el;
+      }
+    });
   }
+  ensureContainers();
 
-  function normalize(json) {
-    return {
-      events: (json.events || []).map((ev) => ({
-        title: ev.title || "Event",
-        start: new Date(ev.start),
-        end:   new Date(ev.end),
-        loc:   ev.loc || "",
-        cat:   ev.cat || 1,
-        description: ev.description || "",
-      })),
-      projects:     json.projects     || [],
-      capabilities: json.capabilities || [],
-      phases:       json.phases       || [],
-      countdown: json.countdown
-        ? {
-            label: json.countdown.label || "Critical Deadline",
-            target: json.countdown.target ? new Date(json.countdown.target) : null,
-            targetLabel: json.countdown.targetLabel || "TBD",
-          }
-        : null,
-      lastUpdated: json.last_updated ? new Date(json.last_updated) : new Date(),
-      reloadIntervalSec: json.reload_interval_seconds || 300,
-    };
-  }
-
-  function showError(msg) {
-    let banner = document.querySelector(".err-banner");
-    if (!banner) {
-      banner = document.createElement("div");
-      banner.className = "err-banner";
-      document.body.appendChild(banner);
-    }
-    banner.textContent = msg;
-    setTimeout(() => banner && banner.remove(), 5000);
-  }
-
-  // ─── View registry ───────────────────────────────
-  function registerViews() {
-    state.views = [];
-    if (window.CalendarView)     state.views.push({ key: "cal",  name: "Calendar",     render: window.CalendarView.render });
-    if (window.StatusView)       state.views.push({ key: "stv",  name: "Project Status", render: window.StatusView.render });
-    if (window.CapabilitiesView) state.views.push({ key: "capv", name: "Capabilities", render: window.CapabilitiesView.render });
+  function renderView(id) {
+    const v = VIEWS[id];
+    if (!v) return;
+    v.render(containers[id]);
   }
 
-  function renderDots() {
-    els.footerDots.innerHTML = "";
-    state.views.forEach((v, i) => {
-      const b = document.createElement("button");
-      b.className = "gf-dot" + (i === state.idx ? " active" : "");
-      b.title = v.name;
-      b.addEventListener("click", () => goTo(i));
-      els.footerDots.appendChild(b);
+  function show(idx) {
+    cur = (idx + order.length) % order.length;
+    const id = order[cur];
+    if (!VIEWS[id]) return;
+
+    renderView(id);
+
+    Object.keys(containers).forEach(k => containers[k].classList.remove("is-active"));
+    containers[id].classList.add("is-active");
+
+    viewNameEl.textContent = VIEWS[id].name;
+    viewIdxEl.textContent = `${String(cur+1).padStart(2,"0")} / ${String(order.length).padStart(2,"0")}`;
+
+    buildDots();
+    resetProgress();
+  }
+
+  function next() { show(cur + 1); }
+  function prev() { show(cur - 1); }
+
+  function buildDots() {
+    dotsEl.innerHTML = "";
+    order.forEach((id, i) => {
+      const dot = document.createElement("button");
+      dot.className = "gf-dot" + (i === cur ? " is-active" : "");
+      dot.textContent = VIEWS[id].name;
+      dot.title = VIEWS[id].name;
+      dot.onclick = () => show(i);
+      dotsEl.appendChild(dot);
     });
   }
 
-  function mount(idx) {
-    if (!state.views.length) return;
-    const v = state.views[idx];
-    if (!v) return;
-    state.idx = idx;
-    state.elapsed = 0;
-    els.viewIdx.textContent = pad(idx + 1) + " / " + pad(state.views.length);
-    els.viewName.textContent = v.name;
-
-    els.host.innerHTML = "";
-    const wrap = document.createElement("div");
-    wrap.className = "view";
-    els.host.appendChild(wrap);
-
-    try {
-      v.render(wrap, state.data);
-    } catch (e) {
-      console.error(e);
-      wrap.innerHTML = '<div class="cal-empty">View error: ' + (e.message || e) + '</div>';
-    }
-    renderDots();
-    state.lastRender = v.key;
-  }
-
-  function next() { mount((state.idx + 1) % state.views.length); }
-  function prev() { mount((state.idx - 1 + state.views.length) % state.views.length); }
-  function goTo(i) { mount(i % state.views.length); }
-
-  function tick() {
-    if (state.paused || !state.views.length) return;
-    state.elapsed += state.tickMs;
-    const pct = Math.min(100, (state.elapsed / state.rotateMs) * 100);
-    els.progressFill.style.width = pct + "%";
-    if (state.elapsed >= state.rotateMs) {
-      next();
+  function resetProgress() {
+    tickStart = performance.now();
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(tickProgress);
+    if (timer) clearTimeout(timer);
+    if (!paused) {
+      timer = setTimeout(next, interval);
+    } else {
+      progressFill.style.width = "0%";
     }
   }
 
-  function startTimer() {
-    if (state.timer) clearInterval(state.timer);
-    state.timer = setInterval(tick, state.tickMs);
-  }
-
-  function setPaused(p) {
-    state.paused = !!p;
-    setStatus(state.paused ? "warn" : "ok", state.paused ? "Paused" : "Live");
-  }
-
-  function setRotateMs(ms) {
-    state.rotateMs = Math.max(2000, ms | 0);
-    state.elapsed = 0;
-  }
-
-  // ─── Reload ──────────────────────────────────────
-  async function reloadDashboardData() {
-    if (!els.reloadBtn) return;
-    els.reloadBtn.classList.add("loading");
-    setStatus("warn", "Reloading");
-    try {
-      await fetch("/api/reload", { method: "POST" });
-      // small delay so the server can refresh ical
-      await new Promise((r) => setTimeout(r, 500));
-      state.data = await fetchData();
-      mount(state.idx);  // re-render current view with new data
-      setStatus("ok", "Live");
-    } catch (e) {
-      console.error(e);
-      showError("Reload failed: " + (e.message || e));
-      setStatus("bad", "Error");
-    } finally {
-      setTimeout(() => els.reloadBtn.classList.remove("loading"), 400);
-    }
-  }
-  window.reloadDashboardData = reloadDashboardData;
-
-  // ─── Boot ────────────────────────────────────────
-  async function boot() {
-    setStatus(null, "Loading");
-    try {
-      state.data = await fetchData();
-    } catch (e) {
-      console.error(e);
-      setStatus("bad", "No data");
-      els.host.innerHTML = '<div class="cal-empty">Could not load data: ' + (e.message || e) + '<br/><br/>Check /api/data and your config.json.</div>';
-      els.splash.classList.add("hidden");
+  function tickProgress() {
+    if (paused) {
+      progressFill.style.width = "0%";
       return;
     }
-    registerViews();
-    if (!state.views.length) {
-      els.host.innerHTML = '<div class="cal-empty">No views registered.</div>';
-      els.splash.classList.add("hidden");
-      return;
-    }
-    els.splash.classList.add("hidden");
-    setStatus("ok", "Live");
-    mount(0);
-    startTimer();
-
-    // Auto-refresh data once per server-configured interval
-    const refreshMs = Math.max(60000, state.data.reloadIntervalSec * 1000);
-    setInterval(async () => {
-      try {
-        const fresh = await fetchData();
-        state.data = fresh;
-        // Re-render current view in place (no rotate reset)
-        const savedElapsed = state.elapsed;
-        mount(state.idx);
-        state.elapsed = savedElapsed;
-      } catch (e) {
-        console.warn("background refresh failed:", e);
-      }
-    }, refreshMs);
-
-    // Initialize tweaks panel if available
-    if (window.Tweaks && typeof window.Tweaks.init === "function") {
-      window.Tweaks.init({
-        getRotateMs: () => state.rotateMs,
-        setRotateMs,
-        setPaused,
-        getPaused: () => state.paused,
-        getStage: () => document.getElementById("stage"),
-      });
-    }
+    const elapsed = performance.now() - tickStart;
+    const pct = Math.min(100, (elapsed / interval) * 100);
+    progressFill.style.width = pct + "%";
+    if (pct < 100) rafId = requestAnimationFrame(tickProgress);
   }
 
-  // ─── Keyboard ────────────────────────────────────
-  document.addEventListener("keydown", (e) => {
-    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
-    if (e.key === "ArrowRight" || e.key === "n") next();
-    else if (e.key === "ArrowLeft" || e.key === "p") prev();
-    else if (e.key === " ") { e.preventDefault(); setPaused(!state.paused); }
-    else if (e.key === "r") reloadDashboardData();
-    else if (e.key === "t") {
-      const tw = document.getElementById("tweaks-panel");
-      if (tw) tw.classList.toggle("open");
+  /* ---------- Public API ---------- */
+  window.DashRotator = {
+    show, next, prev,
+    setPaused(p) {
+      paused = !!p;
+      if (paused) { if (timer) clearTimeout(timer); progressFill.style.width = "0%"; }
+      else { resetProgress(); }
+    },
+    setInterval(ms) {
+      interval = Math.max(3000, ms|0);
+      resetProgress();
+    },
+    setOrder(list) {
+      if (!Array.isArray(list) || !list.length) return;
+      const known = list.filter(k => VIEWS[k]);
+      if (!known.length) return;
+      const curId = order[cur];
+      order = known;
+      const newIdx = order.indexOf(curId);
+      cur = newIdx >= 0 ? newIdx : 0;
+      show(cur);
+    },
+    registerView(id, spec) {
+      VIEWS[id] = spec;
+      if (!order.includes(id)) order.push(id);
+      ensureContainers();
+      buildDots();
+    },
+    getState() { return { cur, order: order.slice(), paused, interval }; },
+  };
+
+  /* ---------- Keyboard ---------- */
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight") { next(); }
+    else if (e.key === "ArrowLeft") { prev(); }
+    else if (e.key === " ") {
+      e.preventDefault();
+      window.DashRotator.setPaused(!paused);
     }
   });
 
-  // Public API for footer buttons
-  window.DashRotator = {
-    next, prev, goTo, setPaused, setRotateMs,
-    getState: () => ({ idx: state.idx, paused: state.paused, rotateMs: state.rotateMs }),
-  };
+  /* ---------- Auto-hide footer after 3s of no mouse ---------- */
+  let hideTimer = null;
+  function showChrome() {
+    footer.classList.remove("is-hidden");
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => footer.classList.add("is-hidden"), 3000);
+  }
+  showChrome();
+  window.addEventListener("mousemove", showChrome);
+  window.addEventListener("mousedown", showChrome);
 
-  // Go.
-  document.addEventListener("DOMContentLoaded", boot);
-  if (document.readyState !== "loading") boot();
+  /* ---------- Boot ---------- */
+  // Apply saved tweaks if present
+  if (window.DASH_TWEAKS) {
+    if (window.DASH_TWEAKS.rotationSeconds) interval = window.DASH_TWEAKS.rotationSeconds * 1000;
+    if (window.DASH_TWEAKS.viewOrder) {
+      const known = window.DASH_TWEAKS.viewOrder.filter(k => VIEWS[k]);
+      if (known.length) order = known;
+    }
+    if (window.DASH_TWEAKS.paused) paused = true;
+  }
+
+  // Persist current view index
+  const savedIdx = parseInt(localStorage.getItem("tackeff_dash_idx") || "0", 10);
+  cur = (!isNaN(savedIdx) && savedIdx >= 0 && savedIdx < order.length) ? savedIdx : 0;
+
+  show(cur);
+
+  // Observe view changes → localStorage
+  const origShow = window.DashRotator.show;
+  window.DashRotator.show = function(idx) {
+    origShow(idx);
+    try { localStorage.setItem("tackeff_dash_idx", String(cur)); } catch (e) {}
+  };
 })();

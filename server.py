@@ -8,7 +8,7 @@ import time
 import threading
 import mimetypes
 import re
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 import urllib.request
@@ -415,7 +415,7 @@ def main() -> None:
 
     _start_refresh_thread()
 
-    server = HTTPServer(("0.0.0.0", port), DashboardHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", port), DashboardHandler)
     print(f"TackEff Dashboard  →  http://0.0.0.0:{port}", flush=True)
     try:
         server.serve_forever()

@@ -1,177 +1,160 @@
-/* Calendar view — week view with hourly grid */
+/* Calendar View — two-week grid + upcoming sidebar */
 
-(function () {
-  "use strict";
+window.renderCalendarView = function(host) {
+  const events = window.DASHBOARD_EVENTS;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  const HOURS_START = 7;   // 07:00
-  const HOURS_END   = 21;  // 21:00 (exclusive)
-  const HOUR_COUNT  = HOURS_END - HOURS_START;
+  // Start on Sunday of current week
+  const gridStart = new Date(today);
+  gridStart.setDate(today.getDate() - today.getDay());
 
-  function startOfWeek(d) {
-    const x = new Date(d);
-    x.setHours(0, 0, 0, 0);
-    const dow = x.getDay();              // 0=Sun … 6=Sat
-    const offset = dow === 0 ? -6 : 1 - dow; // make Monday the start
-    x.setDate(x.getDate() + offset);
-    return x;
+  const cells = [];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    cells.push(d);
   }
 
-  function sameDay(a, b) {
-    return a.getFullYear() === b.getFullYear()
-        && a.getMonth() === b.getMonth()
-        && a.getDate() === b.getDate();
-  }
+  const sameDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
 
-  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  const monthNames = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  const dowNames = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
-  function fmtTimeRange(s, e) {
-    return pad(s.getHours()) + ":" + pad(s.getMinutes()) + "–" + pad(e.getHours()) + ":" + pad(e.getMinutes());
-  }
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const fmtTime = (d) => {
+    let h = d.getHours();
+    const m = d.getMinutes();
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12; if (h === 0) h = 12;
+    return `${h}:${pad2(m)}${ap}`;
+  };
 
-  function renderCountdown(cd) {
-    if (!cd || !cd.target) return "";
-    const now = new Date();
-    const diffMs = cd.target.getTime() - now.getTime();
-    const days = Math.ceil(diffMs / 86400000);
-    const cls = days < 0 ? "bad" : (days < 14 ? "" : "ok");
-    const label = days < 0 ? Math.abs(days) + "d overdue" : days + "d";
-    return '<span class="countdown">' + cd.label + ' · ' + cd.targetLabel +
-           ' <b class="' + cls + '">' + label + '</b></span>';
-  }
+  // Header month range
+  const first = cells[0], last = cells[cells.length - 1];
+  const monthRange = first.getMonth() === last.getMonth()
+    ? `${monthNames[first.getMonth()]} ${first.getFullYear()}`
+    : `${monthNames[first.getMonth()]} – ${monthNames[last.getMonth()]} ${last.getFullYear()}`;
 
-  function render(host, data) {
-    const events = data.events || [];
-    const weekStart = startOfWeek(new Date());
-    const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
+  // Count totals
+  const windowEnd = new Date(today); windowEnd.setDate(today.getDate() + 30);
+  const in30 = events.filter(e => e.start >= today && e.start <= windowEnd);
 
-    // Filter events in this week and within visible hours
-    const weekEvents = events.filter((ev) => ev.end > weekStart && ev.start < weekEnd);
+  // Stats
+  const todayEvents = events.filter(e => sameDay(e.start, today));
+  const thisWeekEnd = new Date(today); thisWeekEnd.setDate(today.getDate() + (6 - today.getDay()));
+  const thisWeek = events.filter(e => e.start >= today && e.start <= thisWeekEnd);
+  const uniqueLocs = new Set(events.map(e => e.loc)).size;
 
-    const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-    const today = new Date();
+  // Build grid cell HTML
+  const cellHtml = cells.map(d => {
+    const dayEvents = events
+      .filter(e => sameDay(e.start, d))
+      .sort((a, b) => a.start - b.start);
 
-    // Build header
-    let head = '<div class="cal-head"><div></div>';
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(weekStart); d.setDate(d.getDate() + i);
-      const isToday = sameDay(d, today);
-      head += '<div class="' + (isToday ? "cal-day-today" : "") + '">' +
-              days[i] +
-              '<div class="cal-day-num">' + d.getDate() + '</div></div>';
-    }
-    head += '</div>';
+    const isToday = sameDay(d, today);
+    const isInMonth = d.getMonth() === today.getMonth();
+    const cls = `cal-cell ${isToday ? "is-today" : ""} ${!isInMonth ? "is-other" : ""}`;
 
-    // Build grid
-    let grid = '<div class="cal-grid"><div class="cal-hours">';
-    for (let h = HOURS_START; h < HOURS_END; h++) {
-      grid += '<div class="cal-hour-label">' + pad(h) + ':00</div>';
-    }
-    grid += '</div>';
+    const evHtml = dayEvents.slice(0, 3).map(e => `
+      <div class="cal-event c-${e.cat}">
+        <span class="t">${fmtTime(e.start)}</span>
+        <span>${e.title}</span>
+      </div>
+    `).join("");
+    const more = dayEvents.length > 3
+      ? `<div class="cal-event more">+ ${dayEvents.length - 3} more</div>` : "";
 
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(weekStart); d.setDate(d.getDate() + i);
-      const isToday = sameDay(d, today);
-      grid += '<div class="cal-col' + (isToday ? " cal-col-today" : "") + '" data-day="' + i + '">';
-      for (let h = HOURS_START; h < HOURS_END; h++) {
-        grid += '<div class="cal-col-slot"></div>';
-      }
-      grid += '</div>';
-    }
-    grid += '</div>';
+    const monLabel = d.getDate() === 1 || d === cells[0]
+      ? `<span class="mo">${monthNames[d.getMonth()]}</span>` : "";
 
-    // Title bar
-    const range = weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
-                  " – " +
-                  new Date(weekEnd.getTime() - 86400000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return `
+      <div class="${cls}">
+        <div class="cal-cell-num">${d.getDate()}${monLabel}</div>
+        ${evHtml}${more}
+      </div>
+    `;
+  }).join("");
 
-    const legend = '<div class="cal-legend">' +
-      '<div class="cal-legend-item"><span class="cal-legend-swatch" style="background:var(--cat-1)"></span>Sync</div>' +
-      '<div class="cal-legend-item"><span class="cal-legend-swatch" style="background:var(--cat-2)"></span>Review</div>' +
-      '<div class="cal-legend-item"><span class="cal-legend-swatch" style="background:var(--cat-3)"></span>External</div>' +
-      '<div class="cal-legend-item"><span class="cal-legend-swatch" style="background:var(--cat-4)"></span>Field</div>' +
-      '<div class="cal-legend-item"><span class="cal-legend-swatch" style="background:var(--cat-5)"></span>Offsite</div>' +
-      '</div>';
+  // Upcoming sidebar — next 7 events from now
+  const upcoming = events
+    .filter(e => e.start >= new Date())
+    .sort((a, b) => a.start - b.start)
+    .slice(0, 8);
 
-    host.innerHTML =
-      '<div class="view-title">' +
-        '<h2>This Week</h2>' +
-        '<span class="view-sub">' + range + '</span>' +
-        '<span class="spacer"></span>' +
-        legend +
-        renderCountdown(data.countdown) +
-      '</div>' +
-      '<div class="cal">' + head + grid + '</div>';
+  const upcomingHtml = upcoming.map(e => {
+    const isToday = sameDay(e.start, today);
+    const dowShort = dowNames[e.start.getDay()];
+    return `
+      <div class="cal-up ${isToday ? "is-today" : ""}">
+        <div class="cal-up-day">
+          <div class="dow">${dowShort}</div>
+          <div class="num">${e.start.getDate()}</div>
+        </div>
+        <div class="cal-up-body">
+          <div class="cal-up-title">${e.title}</div>
+          <div class="cal-up-meta">
+            <span>${fmtTime(e.start)}</span>
+            <span>•</span>
+            <span>${e.loc}</span>
+          </div>
+        </div>
+        <div class="cal-up-tag c-${e.cat}">${catLabel(e.cat)}</div>
+      </div>
+    `;
+  }).join("");
 
-    // Position events
-    const grid_el = host.querySelector(".cal-grid");
-    if (!weekEvents.length) {
-      const empty = document.createElement("div");
-      empty.className = "cal-empty";
-      empty.style.position = "absolute";
-      empty.style.left = "56px"; empty.style.right = "0";
-      empty.style.top = "50%"; empty.style.transform = "translateY(-50%)";
-      empty.textContent = "No events this week";
-      grid_el.appendChild(empty);
-    }
+  host.innerHTML = `
+    <div class="cal">
+      <div class="cal-main">
+        <div class="cal-header">
+          <h2 class="cal-title">Next <em>14</em> days</h2>
+          <div class="cal-subtitle">${monthRange} · ${in30.length} events scheduled · 30-day window</div>
+        </div>
 
-    weekEvents.forEach((ev) => {
-      const dayIdx = Math.floor((ev.start - weekStart) / 86400000);
-      if (dayIdx < 0 || dayIdx > 6) return;
+        <div class="cal-grid">
+          ${dowNames.map(d => `<div class="cal-dow">${d}</div>`).join("")}
+          ${cellHtml}
+        </div>
+      </div>
 
-      const startMin = ev.start.getHours() * 60 + ev.start.getMinutes();
-      const endMin   = ev.end.getHours()   * 60 + ev.end.getMinutes();
-      const visStart = HOURS_START * 60;
-      const visEnd   = HOURS_END   * 60;
+      <div class="cal-side">
+        <div class="cal-side-stats">
+          <div class="cal-stat">
+            <div class="cal-stat-label">Today</div>
+            <div class="cal-stat-value"><em>${todayEvents.length}</em></div>
+          </div>
+          <div class="cal-stat">
+            <div class="cal-stat-label">This Week</div>
+            <div class="cal-stat-value">${thisWeek.length}</div>
+          </div>
+          <div class="cal-stat">
+            <div class="cal-stat-label">Next 30d</div>
+            <div class="cal-stat-value">${in30.length}</div>
+          </div>
+          <div class="cal-stat">
+            <div class="cal-stat-label">Locations</div>
+            <div class="cal-stat-value">${uniqueLocs}</div>
+          </div>
+        </div>
 
-      const sMin = Math.max(startMin, visStart);
-      const eMin = Math.min(endMin,   visEnd);
-      if (eMin <= sMin) return;
+        <div class="cal-upcoming">
+          <div class="panel-h">
+            <span>Up Next</span>
+            <span style="margin-left:auto; color: var(--fg-3);">${upcoming.length} events</span>
+          </div>
+          <div class="cal-upcoming-list">
+            ${upcomingHtml}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+};
 
-      const totalMin = HOUR_COUNT * 60;
-      const topPct    = ((sMin - visStart) / totalMin) * 100;
-      const heightPct = Math.max(2.5, ((eMin - sMin) / totalMin) * 100);
-
-      const col = grid_el.querySelector('.cal-col[data-day="' + dayIdx + '"]');
-      if (!col) return;
-      const evEl = document.createElement("div");
-      evEl.className = "cal-event cat-" + (ev.cat || 1);
-      evEl.style.top    = topPct + "%";
-      evEl.style.height = heightPct + "%";
-      evEl.innerHTML =
-        '<div class="cal-event-title">' + escape(ev.title) + '</div>' +
-        '<div class="cal-event-meta">' + fmtTimeRange(ev.start, ev.end) +
-          (ev.loc ? ' · ' + escape(ev.loc) : '') + '</div>';
-      col.appendChild(evEl);
-    });
-
-    // Now-line (only if today is visible in the current week)
-    if (today >= weekStart && today < weekEnd) {
-      const nowMin = today.getHours() * 60 + today.getMinutes();
-      if (nowMin >= HOURS_START * 60 && nowMin <= HOURS_END * 60) {
-        const totalMin = HOUR_COUNT * 60;
-        const dayIdx = Math.floor((today - weekStart) / 86400000);
-        const topPct = ((nowMin - HOURS_START * 60) / totalMin) * 100;
-        const colWidthPct = 100 / 7;
-        const line = document.createElement("div");
-        line.className = "cal-now-line";
-        line.style.top = "calc(" + topPct + "% )";
-        line.style.left = "calc(56px + " + (dayIdx * colWidthPct) + "% * (1 - 56px / 100%))";
-        // Simpler: put it across the whole grid
-        line.style.left = "56px";
-        line.style.right = "0";
-        // Highlight just today's column
-        line.style.background = "var(--bad)";
-        const grid = host.querySelector(".cal-grid");
-        grid.appendChild(line);
-      }
-    }
-  }
-
-  function escape(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
-  }
-
-  window.CalendarView = { render };
-})();
+function catLabel(c) {
+  return ({1:"SYNC",2:"REVIEW",3:"EXTERNAL",4:"FIELD",5:"OFFSITE"})[c] || "EVENT";
+}
