@@ -1,0 +1,36 @@
+{
+  "port": 8181,
+  "reload_interval_seconds": 300,
+
+  "countdown": {
+    "label": "Critical Deadline",
+    "target": "",
+    "target_label": "TBD"
+  },
+
+  "phases": [
+    "Initial Concept",
+    "Hardware Design",
+    "Software Design",
+    "Hardware Purchase",
+    "Hardware Received",
+    "Initial Build",
+    "Dry Run",
+    "Final Build",
+    "Deploy"
+  ],
+
+  "ical_urls": [
+    {
+      "url": "",
+      "category": 1,
+      "_comment_category": "1=Sync 2=Review 3=External 4=Field 5=Offsite — controls event color"
+    }
+  ],
+
+  "_notes": {
+    "ical_urls": "Each entry can be a plain URL string or an object {url, category}. Category controls the event color on the calendar (1-5). Remove the placeholder entry above and add your iCal URL(s).",
+    "countdown_target": "ISO 8601 date string, e.g. '2026-12-31'. Leave empty to hide countdown.",
+    "reload_interval_seconds": "How often the background thread refreshes iCal data. The UI 'Reload' button triggers an immediate refresh regardless of this interval."
+  }
+}

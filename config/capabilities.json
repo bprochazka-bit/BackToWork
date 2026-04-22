@@ -1,0 +1,129 @@
+[
+  {
+    "name": "Multi-tenant workspaces",
+    "code": "CAP-001",
+    "tasks": [
+      {"name": "Workspace data model",   "owner": "M. Chen",  "done": true},
+      {"name": "Invite + role system",   "owner": "R. Patel", "done": true},
+      {"name": "Per-workspace quotas",   "owner": "M. Chen",  "done": false},
+      {"name": "Audit log scoping",      "owner": "D. Ortiz", "done": false},
+      {"name": "Billing adapter",        "owner": "S. Kane",  "done": false}
+    ]
+  },
+  {
+    "name": "Offline-first capture",
+    "code": "CAP-002",
+    "tasks": [
+      {"name": "Local SQLite shim",      "owner": "J. Liu",   "done": true},
+      {"name": "Conflict resolver",      "owner": "J. Liu",   "done": false},
+      {"name": "Sync queue + retry",     "owner": "A. Volkov","done": false},
+      {"name": "Field test — North Lot", "owner": "Ops",      "done": false}
+    ]
+  },
+  {
+    "name": "Real-time telemetry bus",
+    "code": "CAP-003",
+    "tasks": [
+      {"name": "gRPC stream plumbing",   "owner": "R. Patel", "done": true},
+      {"name": "Backpressure handling",  "owner": "R. Patel", "done": true},
+      {"name": "Throughput benchmark",   "owner": "R. Patel", "done": true},
+      {"name": "Dashboard integration",  "owner": "M. Chen",  "done": true}
+    ]
+  },
+  {
+    "name": "SSO + SCIM provisioning",
+    "code": "CAP-004",
+    "tasks": [
+      {"name": "Okta OIDC flow",         "owner": "S. Kane",  "done": true},
+      {"name": "Azure AD flow",          "owner": "S. Kane",  "done": false},
+      {"name": "SCIM user sync",         "owner": "S. Kane",  "done": false},
+      {"name": "Group-to-role mapping",  "owner": "D. Ortiz", "done": false},
+      {"name": "De-provisioning path",   "owner": "D. Ortiz", "done": false},
+      {"name": "Admin audit UI",         "owner": "N. Park",  "done": false}
+    ]
+  },
+  {
+    "name": "Command console v2",
+    "code": "CAP-005",
+    "tasks": [
+      {"name": "Layout refactor",           "owner": "N. Park", "done": true},
+      {"name": "Keyboard-first shortcuts",  "owner": "N. Park", "done": true},
+      {"name": "Multi-panel persistence",   "owner": "N. Park", "done": false},
+      {"name": "Incident timeline widget",  "owner": "N. Park", "done": false}
+    ]
+  },
+  {
+    "name": "Hardware self-test suite",
+    "code": "CAP-006",
+    "tasks": [
+      {"name": "Board-level probe script", "owner": "A. Volkov","done": true},
+      {"name": "Thermal sweep harness",    "owner": "A. Volkov","done": true},
+      {"name": "Radio loopback",           "owner": "A. Volkov","done": true},
+      {"name": "CI runner integration",    "owner": "J. Liu",   "done": true},
+      {"name": "Report generator",         "owner": "M. Chen",  "done": true}
+    ]
+  },
+  {
+    "name": "Secure firmware OTA",
+    "code": "CAP-007",
+    "tasks": [
+      {"name": "Signed manifest format",  "owner": "A. Volkov","done": true},
+      {"name": "Delta patcher",           "owner": "A. Volkov","done": false},
+      {"name": "Rollback guard",          "owner": "A. Volkov","done": false},
+      {"name": "Fleet staging rings",     "owner": "Ops",      "done": false}
+    ]
+  },
+  {
+    "name": "Observability & alerting",
+    "code": "CAP-008",
+    "tasks": [
+      {"name": "Metrics exporter",        "owner": "R. Patel", "done": true},
+      {"name": "Log pipeline",            "owner": "R. Patel", "done": true},
+      {"name": "Alert routing",           "owner": "Ops",      "done": false},
+      {"name": "SLO dashboards",          "owner": "M. Chen",  "done": false}
+    ]
+  },
+  {
+    "name": "Customer-facing API v2",
+    "code": "CAP-009",
+    "tasks": [
+      {"name": "Schema freeze",           "owner": "D. Ortiz", "done": true},
+      {"name": "Rate limits",             "owner": "D. Ortiz", "done": true},
+      {"name": "SDK — Python",            "owner": "J. Liu",   "done": true},
+      {"name": "SDK — TypeScript",        "owner": "J. Liu",   "done": false},
+      {"name": "Public docs refresh",     "owner": "N. Park",  "done": false}
+    ]
+  },
+  {
+    "name": "Compliance — SOC 2 Type II",
+    "code": "CAP-010",
+    "tasks": [
+      {"name": "Evidence collection",        "owner": "S. Kane", "done": true},
+      {"name": "Access review workflow",     "owner": "S. Kane", "done": true},
+      {"name": "Vendor risk register",       "owner": "S. Kane", "done": false},
+      {"name": "Penetration test window",    "owner": "Ops",     "done": false},
+      {"name": "Auditor dry run",            "owner": "S. Kane", "done": false}
+    ]
+  },
+  {
+    "name": "Field-ready demo kit",
+    "code": "CAP-011",
+    "tasks": [
+      {"name": "Hardened transit case",   "owner": "A. Volkov","done": true},
+      {"name": "One-button launcher",     "owner": "N. Park",  "done": true},
+      {"name": "Pre-loaded scenarios",    "owner": "M. Chen",  "done": true},
+      {"name": "Stakeholder run-book",    "owner": "Ops",      "done": true}
+    ]
+  },
+  {
+    "name": "AI assist — ops copilot",
+    "code": "CAP-012",
+    "tasks": [
+      {"name": "Prompt harness",          "owner": "J. Liu",   "done": false},
+      {"name": "Tool-call schema",        "owner": "J. Liu",   "done": false},
+      {"name": "Safety evals",            "owner": "D. Ortiz", "done": false},
+      {"name": "In-console UI surface",   "owner": "N. Park",  "done": false},
+      {"name": "Feedback loop",           "owner": "M. Chen",  "done": false}
+    ]
+  }
+]

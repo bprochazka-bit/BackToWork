@@ -1,0 +1,206 @@
+[
+  {
+    "name": "Orion Ground Station",
+    "code": "PRJ-014",
+    "phases": [
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "ok",   "p": 0.7, "d": 4},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0}
+    ],
+    "overall": 0.56,
+    "status": "ok"
+  },
+  {
+    "name": "Atlas Relay Node",
+    "code": "PRJ-021",
+    "phases": [
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "ok",   "p": 0.9, "d": 2},
+      {"s": "ok",   "p": 0.6, "d": 6},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0}
+    ],
+    "overall": 0.38,
+    "status": "ok"
+  },
+  {
+    "name": "Sentinel Airborne",
+    "code": "PRJ-032",
+    "phases": [
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "warn", "p": 0.5, "d": 2},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0}
+    ],
+    "overall": 0.62,
+    "status": "warn"
+  },
+  {
+    "name": "Halo Perimeter",
+    "code": "PRJ-044",
+    "phases": [
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "bad",  "p": 0.3, "d": -3},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0}
+    ],
+    "overall": 0.31,
+    "status": "bad"
+  },
+  {
+    "name": "Vector Comms Rack",
+    "code": "PRJ-051",
+    "phases": [
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "ok",   "p": 0.4, "d": 9},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0}
+    ],
+    "overall": 0.70,
+    "status": "ok"
+  },
+  {
+    "name": "Beacon Edge Sensor",
+    "code": "PRJ-058",
+    "phases": [
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "ok",   "p": 0.55,"d": 8},
+      {"s": "idle", "p": 0.0, "d": 0}
+    ],
+    "overall": 0.84,
+    "status": "ok"
+  },
+  {
+    "name": "Cobalt Uplink",
+    "code": "PRJ-062",
+    "phases": [
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "ok",   "p": 0.8, "d": 3},
+      {"s": "ok",   "p": 0.65,"d": 5},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0}
+    ],
+    "overall": 0.26,
+    "status": "ok"
+  },
+  {
+    "name": "Iris Optical Payload",
+    "code": "PRJ-067",
+    "phases": [
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "warn", "p": 0.7, "d": 1},
+      {"s": "warn", "p": 0.4, "d": 2},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0}
+    ],
+    "overall": 0.34,
+    "status": "warn"
+  },
+  {
+    "name": "Meridian Command Console",
+    "code": "PRJ-072",
+    "phases": [
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "ok",   "p": 0.5, "d": 6}
+    ],
+    "overall": 0.94,
+    "status": "ok"
+  },
+  {
+    "name": "Pulse Beacon Mk II",
+    "code": "PRJ-078",
+    "phases": [
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "ok",   "p": 0.85,"d": 3},
+      {"s": "ok",   "p": 0.2, "d": 12},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0}
+    ],
+    "overall": 0.54,
+    "status": "ok"
+  },
+  {
+    "name": "Tungsten Field Kit",
+    "code": "PRJ-084",
+    "phases": [
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "done", "p": 1.0, "d": 0},
+      {"s": "bad",  "p": 0.2, "d": -5},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0}
+    ],
+    "overall": 0.49,
+    "status": "bad"
+  },
+  {
+    "name": "Nimbus Cloud Gateway",
+    "code": "PRJ-091",
+    "phases": [
+      {"s": "ok",   "p": 0.6, "d": 4},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0},
+      {"s": "idle", "p": 0.0, "d": 0}
+    ],
+    "overall": 0.08,
+    "status": "ok"
+  }
+]
