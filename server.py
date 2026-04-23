@@ -248,6 +248,34 @@ def _start_refresh_thread() -> None:
 
 
 # ─────────────────────────────────────────
+# Project status computation
+# ─────────────────────────────────────────
+
+def _compute_overall(phases: list[dict]) -> tuple[float, str]:
+    """Return (overall_fraction, status) from a phase list.
+
+    Overall is the mean of per-phase completion (`p`). Status escalates to the
+    worst per-phase state: any `bad` → bad, else any `warn` → warn, else if
+    every phase is `done` → done, else `ok`.
+    """
+    if not phases:
+        return 0.0, "idle"
+    total = sum(ph.get("p", 0.0) for ph in phases)
+    overall = round(total / len(phases), 4)
+
+    states = [ph.get("s", "idle") for ph in phases]
+    if "bad" in states:
+        status = "bad"
+    elif "warn" in states:
+        status = "warn"
+    elif all(s == "done" for s in states):
+        status = "done"
+    else:
+        status = "ok"
+    return overall, status
+
+
+# ─────────────────────────────────────────
 # HTTP Handler
 # ─────────────────────────────────────────
 
@@ -297,12 +325,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         if path in ("/", "/index.html"):
             self._send_file(STATIC_DIR / "index.html")
+        elif path in ("/admin", "/admin/", "/admin.html"):
+            self._send_file(STATIC_DIR / "admin.html")
         elif path == "/api/data":
             self._api_data()
         elif path == "/api/reload":
             self._api_reload()
         elif path == "/api/config":
             self._api_config()
+        elif path == "/api/projects":
+            self._api_projects_get()
         else:
             # Static files
             target = (STATIC_DIR / path.lstrip("/")).resolve()
@@ -322,6 +354,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = parsed.path
         if path == "/api/reload":
             self._api_reload()
+        elif path == "/api/projects":
+            self._api_projects_put()
+        else:
+            self.send_error(404)
+
+    def do_PUT(self) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        if path == "/api/projects":
+            self._api_projects_put()
         else:
             self.send_error(404)
 
@@ -387,6 +429,82 @@ class DashboardHandler(BaseHTTPRequestHandler):
             t.start()
             self._send_json({"ok": True, "reloaded_at": datetime.now().isoformat()})
         except Exception as exc:
+            self._send_json({"error": str(exc)}, 500)
+
+    def _api_projects_get(self) -> None:
+        try:
+            with open(CONFIG_DIR / "projects.json", encoding="utf-8") as f:
+                projects = json.load(f)
+            config = load_config()
+            phases = config.get("phases", [])
+            self._send_json({"projects": projects, "phases": phases})
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, 500)
+
+    def _api_projects_put(self) -> None:
+        try:
+            raw = self._read_body()
+            if not raw:
+                self._send_json({"error": "empty body"}, 400)
+                return
+            data = json.loads(raw.decode("utf-8"))
+            projects = data.get("projects") if isinstance(data, dict) else data
+            if not isinstance(projects, list):
+                self._send_json({"error": "expected {projects: [...]}"}, 400)
+                return
+
+            phase_count = len(load_config().get("phases", []))
+            cleaned = []
+            for proj in projects:
+                if not isinstance(proj, dict):
+                    continue
+                name = str(proj.get("name", "")).strip()
+                code = str(proj.get("code", "")).strip()
+                if not name:
+                    continue
+                phases_in = proj.get("phases", []) or []
+                phases_out = []
+                for i in range(phase_count):
+                    src = phases_in[i] if i < len(phases_in) else {}
+                    s = src.get("s", "idle")
+                    if s not in ("idle", "ok", "warn", "bad", "done"):
+                        s = "idle"
+                    try:
+                        p = float(src.get("p", 0.0))
+                    except (TypeError, ValueError):
+                        p = 0.0
+                    if s == "done":
+                        p = 1.0
+                    elif s == "idle":
+                        p = 0.0
+                    p = max(0.0, min(1.0, p))
+                    try:
+                        d = int(src.get("d", 0))
+                    except (TypeError, ValueError):
+                        d = 0
+                    phases_out.append({"s": s, "p": p, "d": d})
+
+                overall, status = _compute_overall(phases_out)
+                cleaned.append({
+                    "name": name,
+                    "code": code,
+                    "phases": phases_out,
+                    "overall": overall,
+                    "status": status,
+                })
+
+            path = CONFIG_DIR / "projects.json"
+            tmp = path.with_suffix(".json.tmp")
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(cleaned, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, path)
+
+            self._send_json({"ok": True, "projects": cleaned})
+        except json.JSONDecodeError as exc:
+            self._send_json({"error": f"invalid JSON: {exc}"}, 400)
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
             self._send_json({"error": str(exc)}, 500)
 
     def _api_config(self) -> None:

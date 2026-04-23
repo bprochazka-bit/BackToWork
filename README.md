@@ -86,14 +86,27 @@ The config file is **live-reloaded** — edit and save; the server picks up the 
 
 ## Endpoints
 
-| Method | Path           | Purpose                                       |
-|--------|----------------|-----------------------------------------------|
-| GET    | `/`            | Dashboard UI                                  |
-| GET    | `/api/data`    | All view data as JSON                          |
-| GET    | `/api/config`  | Public config snapshot                         |
-| GET    | `/api/reload`  | Force re-fetch all iCal sources + bust caches  |
-| POST   | `/api/reload`  | Same                                           |
-| GET    | `/<file>`      | Static files from `static/` (path-traversal blocked) |
+| Method | Path             | Purpose                                       |
+|--------|------------------|-----------------------------------------------|
+| GET    | `/`              | Dashboard UI                                  |
+| GET    | `/admin`         | Project Status admin UI                       |
+| GET    | `/api/data`      | All view data as JSON                         |
+| GET    | `/api/config`    | Public config snapshot                        |
+| GET    | `/api/projects`  | `{projects, phases}` for the admin UI         |
+| POST   | `/api/projects`  | Save `{projects: [...]}`; overall % recomputed|
+| GET    | `/api/reload`    | Force re-fetch all iCal sources + bust caches |
+| POST   | `/api/reload`    | Same                                          |
+| GET    | `/<file>`        | Static files from `static/` (path-traversal blocked) |
+
+### Admin UI (`/admin`)
+
+- Create new projects (`+ New Project`) and remove existing ones.
+- For each phase, set state (`Not started` / `On track` / `Tight` / `Over` / `Complete`),
+  drag the progress slider (0–100%), and enter days left (negative = days over).
+- The overall % is auto-computed (mean of phase progress); the project status
+  escalates to the worst phase state (`bad` > `warn` > `ok`; all `done` → delivered).
+- Click **Save All** to persist to `config/projects.json`. The dashboard picks
+  up the change on its next background refresh or via the footer Reload button.
 
 ---
 
