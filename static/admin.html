@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>TackEff — Project Status Admin</title>
+<title>TackEff — Admin</title>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <link rel="stylesheet" href="fonts.css"/>
 <link rel="stylesheet" href="styles.css"/>
@@ -14,11 +14,17 @@
   <div class="adm-header-inner">
     <div class="adm-brand">
       <div class="adm-logo-mark"></div>
-      <div class="adm-brand-text">Tack<em>Eff</em> · Project Status Admin</div>
+      <div class="adm-brand-text">Tack<em>Eff</em> · Admin</div>
     </div>
+
+    <div class="adm-tabs" role="tablist">
+      <button class="adm-tab is-active" data-tab="projects" role="tab" type="button">Project Status</button>
+      <button class="adm-tab" data-tab="capabilities" role="tab" type="button">Capabilities</button>
+    </div>
+
     <nav class="adm-nav">
       <a href="/" class="adm-link">← Dashboard</a>
-      <button id="btn-add" class="adm-btn adm-btn-accent" type="button">+ New Project</button>
+      <button id="btn-add" class="adm-btn adm-btn-accent" type="button">+ New</button>
       <button id="btn-save" class="adm-btn adm-btn-primary" type="button">Save All</button>
     </nav>
   </div>
@@ -26,24 +32,43 @@
 </header>
 
 <main class="adm-main">
-  <section class="adm-legend">
-    <div class="adm-legend-item"><span class="sw s-idle"></span>Not started</div>
-    <div class="adm-legend-item"><span class="sw s-ok"></span>On track</div>
-    <div class="adm-legend-item"><span class="sw s-warn"></span>Tight</div>
-    <div class="adm-legend-item"><span class="sw s-bad"></span>Over</div>
-    <div class="adm-legend-item"><span class="sw s-done"></span>Complete</div>
-    <div class="adm-legend-hint">
-      Overall % is auto-computed as the mean of phase completion. Project status
-      escalates to the worst phase state (bad &gt; warn &gt; ok; all done → delivered).
+  <!-- ═══ Projects tab ═══ -->
+  <section class="adm-tab-panel is-active" data-panel="projects">
+    <div class="adm-legend">
+      <div class="adm-legend-item"><span class="sw s-idle"></span>Not started</div>
+      <div class="adm-legend-item"><span class="sw s-ok"></span>On track</div>
+      <div class="adm-legend-item"><span class="sw s-warn"></span>Tight</div>
+      <div class="adm-legend-item"><span class="sw s-bad"></span>Over</div>
+      <div class="adm-legend-item"><span class="sw s-done"></span>Complete</div>
+      <div class="adm-legend-hint">
+        Overall % is auto-computed as the mean of phase completion. Project status
+        escalates to the worst phase state (bad &gt; warn &gt; ok; all done → delivered).
+      </div>
     </div>
+
+    <div id="projects-list" class="adm-projects"></div>
+
+    <p class="adm-footnote">
+      Projects live in <code>config/projects.json</code>. Click “Save All” to persist.
+    </p>
   </section>
 
-  <section id="projects-list" class="adm-projects"></section>
+  <!-- ═══ Capabilities tab ═══ -->
+  <section class="adm-tab-panel" data-panel="capabilities">
+    <div class="adm-legend">
+      <div class="adm-legend-hint" style="margin-left:0;">
+        Each capability is a checklist. Toggle tasks as they complete — the card
+        progress bar and portfolio meter update automatically. When every task is
+        checked, the capability shows as delivered.
+      </div>
+    </div>
 
-  <p class="adm-footnote">
-    Data lives in <code>config/projects.json</code>. Click “Save All” to persist.
-    The live dashboard picks up changes on its next refresh.
-  </p>
+    <div id="capabilities-list" class="adm-projects"></div>
+
+    <p class="adm-footnote">
+      Capabilities live in <code>config/capabilities.json</code>. Click “Save All” to persist.
+    </p>
+  </section>
 </main>
 
 <script src="admin.js"></script>

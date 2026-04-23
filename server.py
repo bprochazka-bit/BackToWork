@@ -335,6 +335,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._api_config()
         elif path == "/api/projects":
             self._api_projects_get()
+        elif path == "/api/capabilities":
+            self._api_capabilities_get()
         else:
             # Static files
             target = (STATIC_DIR / path.lstrip("/")).resolve()
@@ -356,6 +358,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._api_reload()
         elif path == "/api/projects":
             self._api_projects_put()
+        elif path == "/api/capabilities":
+            self._api_capabilities_put()
         else:
             self.send_error(404)
 
@@ -364,6 +368,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = parsed.path
         if path == "/api/projects":
             self._api_projects_put()
+        elif path == "/api/capabilities":
+            self._api_capabilities_put()
         else:
             self.send_error(404)
 
@@ -500,6 +506,63 @@ class DashboardHandler(BaseHTTPRequestHandler):
             os.replace(tmp, path)
 
             self._send_json({"ok": True, "projects": cleaned})
+        except json.JSONDecodeError as exc:
+            self._send_json({"error": f"invalid JSON: {exc}"}, 400)
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            self._send_json({"error": str(exc)}, 500)
+
+    def _api_capabilities_get(self) -> None:
+        try:
+            with open(CONFIG_DIR / "capabilities.json", encoding="utf-8") as f:
+                caps = json.load(f)
+            self._send_json({"capabilities": caps})
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, 500)
+
+    def _api_capabilities_put(self) -> None:
+        try:
+            raw = self._read_body()
+            if not raw:
+                self._send_json({"error": "empty body"}, 400)
+                return
+            data = json.loads(raw.decode("utf-8"))
+            caps = data.get("capabilities") if isinstance(data, dict) else data
+            if not isinstance(caps, list):
+                self._send_json({"error": "expected {capabilities: [...]}"}, 400)
+                return
+
+            cleaned = []
+            for cap in caps:
+                if not isinstance(cap, dict):
+                    continue
+                name = str(cap.get("name", "")).strip()
+                code = str(cap.get("code", "")).strip()
+                if not name:
+                    continue
+                tasks_in = cap.get("tasks", []) or []
+                tasks_out = []
+                for task in tasks_in:
+                    if not isinstance(task, dict):
+                        continue
+                    t_name = str(task.get("name", "")).strip()
+                    if not t_name:
+                        continue
+                    tasks_out.append({
+                        "name": t_name,
+                        "owner": str(task.get("owner", "")).strip(),
+                        "done": bool(task.get("done", False)),
+                    })
+                cleaned.append({"name": name, "code": code, "tasks": tasks_out})
+
+            path = CONFIG_DIR / "capabilities.json"
+            tmp = path.with_suffix(".json.tmp")
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(cleaned, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, path)
+
+            self._send_json({"ok": True, "capabilities": cleaned})
         except json.JSONDecodeError as exc:
             self._send_json({"error": f"invalid JSON: {exc}"}, 400)
         except Exception as exc:
