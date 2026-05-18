@@ -7,10 +7,25 @@
     "showClock": "subtle",
     "density": "normal",
     "paused": false,
-    "viewOrder": ["calendar", "status", "capabilities"]
+    "viewOrder": []
   }/*EDITMODE-END*/;
 
   const state = Object.assign({}, DEFAULTS, loadLocal());
+
+  function pageIds() {
+    return (window.DASHBOARD_PAGES || []).map((p) => p.id);
+  }
+  function pageName(id) {
+    const p = (window.DASHBOARD_PAGES || []).find((x) => x.id === id);
+    return p ? (p.name || p.id) : id;
+  }
+  // Seed/repair viewOrder from the live page list
+  (function syncOrder() {
+    const ids = pageIds();
+    const kept = (state.viewOrder || []).filter((id) => ids.includes(id));
+    ids.forEach((id) => { if (!kept.includes(id)) kept.push(id); });
+    state.viewOrder = kept;
+  })();
 
   // Apply on load
   applyAll();
@@ -155,7 +170,7 @@
         <div class="tw-label"><span>View Order</span><span class="v">${state.viewOrder.length} views</span></div>
         <div class="tw-views">
           ${state.viewOrder.map((id, i) => {
-            const name = ({calendar:"Calendar", status:"Project Status", capabilities:"Capabilities"})[id] || id;
+            const name = pageName(id);
             return `
               <div class="tw-view-row">
                 <span class="handle">${String(i+1).padStart(2,"0")}</span>

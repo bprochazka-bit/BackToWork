@@ -1,44 +1,21 @@
-/* Data loader — fetches /api/data from the Python server,
-   populates the globals expected by the prototype's views
-   (window.DASHBOARD_EVENTS / PROJECTS / CAPABILITIES / PHASES / COUNTDOWN),
-   then injects the remaining scripts so they can render. */
+/* Data loader — fetches /api/data (a list of pages), exposes
+   window.DASHBOARD_PAGES, then injects the view-template scripts
+   and the dashboard shell. Each page = { id, template, name, data }. */
 
 (function () {
   "use strict";
 
   const STATIC_SCRIPTS = [
     "calendar-view.js",
-    "status-view.js",
-    "capabilities-view.js",
+    "card-view.js",
+    "pseudo-gantt-view.js",
     "tweaks.js",
     "dashboard.js",
   ];
 
-  function toDate(x) { return x ? new Date(x) : null; }
-
   function applyData(json) {
-    window.DASHBOARD_EVENTS = (json.events || []).map((e) => ({
-      title: e.title,
-      start: toDate(e.start),
-      end:   toDate(e.end),
-      loc:   e.loc || "",
-      cat:   e.cat || 1,
-    }));
-
-    window.DASHBOARD_PROJECTS     = json.projects     || [];
-    window.DASHBOARD_CAPABILITIES = json.capabilities || [];
-    window.DASHBOARD_PHASES       = json.phases       || [];
-
-    const cd = json.countdown || {};
-    window.DASHBOARD_COUNTDOWN = {
-      label: cd.label || "Critical Deadline",
-      target: toDate(cd.target) || (() => {
-        const d = new Date(); d.setDate(d.getDate() + 63); return d;
-      })(),
-      targetLabel: cd.targetLabel || "TBD",
-    };
-
-    window.DASHBOARD_LAST_UPDATED    = toDate(json.last_updated);
+    window.DASHBOARD_PAGES = json.pages || [];
+    window.DASHBOARD_LAST_UPDATED = json.last_updated || null;
     window.DASHBOARD_RELOAD_INTERVAL = json.reload_interval_seconds || 300;
   }
 
@@ -70,22 +47,25 @@
     </div>`;
   }
 
+  function rebuild() {
+    if (window.DashRotator && window.DashRotator.rebuild) {
+      window.DashRotator.rebuild(window.DASHBOARD_PAGES);
+    }
+  }
+
   /* Public reload entry — used by the footer "Reload" button */
   window.DashReload = async function () {
     const btn = document.getElementById("reload-btn");
     if (btn) btn.classList.add("is-on");
     try {
       await fetch("/api/reload", { method: "POST" }).catch(() => {});
-      await new Promise((r) => setTimeout(r, 400)); // let server re-fetch iCal
+      await new Promise((r) => setTimeout(r, 600)); // let server re-fetch sources
       const resp = await fetch("/api/data", { cache: "no-store" });
       if (resp.ok) {
         const json = await resp.json();
         if (!json.error) {
           applyData(json);
-          if (window.DashRotator) {
-            const st = window.DashRotator.getState();
-            window.DashRotator.show(st.cur);
-          }
+          rebuild();
         }
       }
     } finally {
@@ -94,7 +74,7 @@
   };
 
   /* Background refresh: re-fetch /api/data once per reload interval
-     so long-lived displays pick up server-side iCal refreshes. */
+     so long-lived displays pick up server-side source refreshes. */
   function startBackgroundRefresh() {
     const ms = Math.max(60000, (window.DASHBOARD_RELOAD_INTERVAL || 300) * 1000);
     setInterval(async () => {
@@ -104,10 +84,7 @@
         const json = await r.json();
         if (json.error) return;
         applyData(json);
-        if (window.DashRotator) {
-          const st = window.DashRotator.getState();
-          window.DashRotator.show(st.cur);
-        }
+        rebuild();
       } catch (_) { /* silent */ }
     }, ms);
   }

@@ -6,7 +6,7 @@ A self-contained, full-screen TV/monitor dashboard for the TackEff Group.
 - **Frontend:** plain HTML/CSS/JS, no CDN, no build step, no internet at runtime.
 - **Design:** fixed 3840×2160 canvas, JS-scaled to fit any viewport (works great on 1080p and 4K TVs).
 - **Fonts:** Inter Tight + JetBrains Mono embedded as base64 in `static/fonts.css` (~360 KB).
-- **Data:** rendered from `/api/data` — config + iCal-fetched events + project/capability JSON.
+- **Data:** rendered from `/api/data` — a list of **pages**, each one a *View Template* bound to a data source (Vikunja or iCal).
 
 Designed for Debian 13. No `pip install` required.
 
@@ -34,21 +34,26 @@ BackToWork/
 ├── generate_fonts.py            # One-shot fonts.css rebuilder (needs internet).
 ├── README.md
 ├── config/
-│   ├── config.json              # Port, iCal URLs, countdown, refresh interval
-│   ├── projects.json            # Project Status view data
-│   └── capabilities.json        # Capabilities view data
+│   ├── config.json              # Port, Vikunja conn, pages, refresh interval
+│   ├── projects.json            # Offline-demo data for a Project View page
+│   └── capabilities.json        # Offline-demo data for a Card View page
 └── static/
     ├── index.html
     ├── fonts.css                # Embedded fonts (base64)
     ├── styles.css               # 4K canvas styles
-    ├── data-loader.js           # Fetches /api/data, injects other scripts
-    ├── dashboard.js             # Shell + rotator + stage scaling
-    ├── calendar-view.js         # 14-day grid + upcoming sidebar
-    ├── status-view.js           # Projects × phases matrix + countdown
-    ├── capabilities-view.js     # Capability cards + task lists
+    ├── data-loader.js           # Fetches /api/data (pages), injects scripts
+    ├── dashboard.js             # Shell + rotator, builds views from pages
+    ├── calendar-view.js         # Calendar template (iCal-backed)
+    ├── card-view.js             # Card View template (Vikunja-backed)
+    ├── pseudo-gantt-view.js     # Project View template (Vikunja-backed)
     ├── tweaks.js                # Runtime tweaks panel (press 't')
     └── sample.ics               # Demo calendar data
 ```
+
+Each view is a **template** registered in `window.VIEW_TEMPLATES`
+(`calendar`, `card`, `pseudo_gantt`). A **page** = one template + one
+source. Add a new template by registering one render function and adding
+a page entry in `config.json`.
 
 ---
 
@@ -59,28 +64,42 @@ BackToWork/
   "port": 8181,
   "reload_interval_seconds": 300,
 
-  "countdown": {
-    "label": "Critical Deadline",
-    "target": "2026-12-31",
-    "target_label": "Q4 Demo Day"
+  "vikunja": {
+    "base_url": "https://vikunja.example.com",
+    "token": "",
+    "token_env": "VIKUNJA_TOKEN"
   },
 
-  "ical_urls": [
-    {"url": "https://example.com/team.ics", "category": 1},
-    {"url": "https://example.com/external.ics", "category": 3}
-  ],
-
-  "phases": ["Initial Concept", "Hardware Design", "..."]
+  "pages": [
+    {"id": "cal-1",  "template": "calendar",     "name": "Team Calendar",
+     "ical_urls": [{"url": "https://example.com/team.ics", "category": 1}]},
+    {"id": "prj-1",  "template": "pseudo_gantt",  "vikunja_project_id": 8},
+    {"id": "cap-1",  "template": "card",          "vikunja_project_id": 5}
+  ]
 }
 ```
 
-- **`ical_urls`** — list of strings or `{url, category}` objects. `category` (1–5) controls event color: 1=Sync, 2=Review, 3=External, 4=Field, 5=Offsite.
-- **`reload_interval_seconds`** — background refresh cadence for iCal sources. The UI **Reload** button forces an immediate refresh regardless.
-- **`countdown.target`** — ISO date. Leave empty (`""`) to hide the countdown.
+- **`pages`** — ordered list. Each entry binds one **template** to one
+  source. Pages render and rotate in array order.
+  - `calendar` → `ical_urls` (list of strings or `{url, category}`;
+    category 1–5 sets event color: 1=Sync 2=Review 3=External 4=Field
+    5=Offsite).
+  - `card` / `pseudo_gantt` → `vikunja_project_id`. The view title is the
+    Vikunja project name; its **subprojects** populate the view.
+    **Card View** = one card per subproject (its tasks listed,
+    completed/total counted). **Project View** = the first subproject's
+    tasks become the column headers; every subproject is a row with cells
+    aligned by task position showing completion.
+  - For an offline demo, replace the Vikunja source with
+    `"local_json": "projects.json"` (or `capabilities.json`).
+- **`vikunja.base_url`** — host root (no `/api/v1`). Provide the API token
+  via `token`, or leave it blank and set the env var named by `token_env`.
+- **`reload_interval_seconds`** — background refresh cadence for all
+  sources. The UI **Reload** button forces an immediate refresh.
+- **`countdown.target`** — optional ISO date on a `pseudo_gantt` page
+  (or top-level default). Leave empty (`""`) to hide the countdown.
 
 The config file is **live-reloaded** — edit and save; the server picks up the change on the next request (or on `/api/reload`).
-
-`projects.json` and `capabilities.json` — edit freely; same live-reload behavior.
 
 ---
 

@@ -1,22 +1,31 @@
-/* Capabilities View — 12 cards with task lists; completed tasks hidden */
+/* Card View template — one card per source group (Vikunja subproject),
+   tasks listed inside, completed/total counted. Completed tasks hidden. */
 
-window.renderCapabilitiesView = function(host) {
-  const caps = window.DASHBOARD_CAPABILITIES;
+(window.VIEW_TEMPLATES = window.VIEW_TEMPLATES || {}).card = function (host, data) {
+  data = data || {};
+  if (data.error) {
+    host.innerHTML = `<div class="cap"><div class="cap-header"><div>
+      <h2 class="cap-title">${data.title || "Card View"}</h2>
+      <div class="cap-sub" style="color:var(--bad);">${data.error}</div>
+    </div></div></div>`;
+    return;
+  }
 
-  // Overall stats
-  const totalTasks = caps.reduce((s, c) => s + c.tasks.length, 0);
-  const doneTasks = caps.reduce((s, c) => s + c.tasks.filter(t => t.done).length, 0);
+  const cards = data.cards || [];
+
+  const totalTasks = cards.reduce((s, c) => s + (c.tasks || []).length, 0);
+  const doneTasks = cards.reduce(
+    (s, c) => s + (c.tasks || []).filter((t) => t.done).length, 0);
   const overallPct = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-  const cardHtml = caps.map((cap, idx) => {
-    const done = cap.tasks.filter(t => t.done).length;
-    const total = cap.tasks.length;
+  const cardHtml = cards.map((cap, idx) => {
+    const tasks = cap.tasks || [];
+    const done = tasks.filter((t) => t.done).length;
+    const total = tasks.length;
     const pct = total ? (done / total) * 100 : 0;
-    const isDone = done === total;
+    const isDone = total > 0 && done === total;
+    const remaining = tasks.filter((t) => !t.done);
 
-    const remaining = cap.tasks.filter(t => !t.done);
-
-    // First incomplete task is the "active" one
     const tasksHtml = isDone
       ? `<div class="cap-card-empty"><span>All tasks complete</span></div>`
       : `<div class="cap-card-tasks">
@@ -24,7 +33,7 @@ window.renderCapabilitiesView = function(host) {
             <div class="cap-task ${i === 0 ? "is-active" : ""}">
               <div class="cap-task-box"></div>
               <div class="cap-task-name">${task.name}</div>
-              <div class="cap-task-owner">${task.owner}</div>
+              <div class="cap-task-owner">${task.owner || ""}</div>
             </div>
           `).join("")}
           ${remaining.length > 5
@@ -35,9 +44,9 @@ window.renderCapabilitiesView = function(host) {
     return `
       <div class="cap-card ${isDone ? "is-done" : ""}">
         <div class="cap-card-h">
-          <div class="cap-card-idx">${String(idx + 1).padStart(2,"0")}</div>
+          <div class="cap-card-idx">${String(idx + 1).padStart(2, "0")}</div>
           <div class="cap-card-name">
-            <span class="code">${cap.code}</span>
+            <span class="code">${cap.code || ""}</span>
             ${cap.name}
           </div>
           <div class="cap-card-count">
@@ -56,8 +65,8 @@ window.renderCapabilitiesView = function(host) {
     <div class="cap">
       <div class="cap-header">
         <div>
-          <h2 class="cap-title">New <em>Capabilities</em></h2>
-          <div class="cap-sub">${caps.length} in flight · ${totalTasks - doneTasks} open tasks · completed tasks hidden</div>
+          <h2 class="cap-title">${data.title || "Card View"}</h2>
+          <div class="cap-sub">${cards.length} in flight · ${totalTasks - doneTasks} open tasks · completed tasks hidden</div>
         </div>
         <div class="cap-meter">
           <div>

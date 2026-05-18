@@ -190,12 +190,9 @@ def _store_cache(url: str, events: list[dict]) -> None:
         _ical_cache[url] = {"events": events, "fetched_at": time.time()}
 
 
-def get_all_events(config: dict) -> list[dict]:
-    """Return merged events from all configured iCal sources."""
-    sources = config.get("ical_urls", [])
-    reload_interval = config.get("reload_interval_seconds", 300)
+def _events_from_sources(sources: list, reload_interval: float) -> list[dict]:
+    """Return merged events from a list of iCal source entries."""
     all_events: list[dict] = []
-
     for src in sources:
         if isinstance(src, str):
             url, cat = src, 1
@@ -214,18 +211,284 @@ def get_all_events(config: dict) -> list[dict]:
             ev2 = dict(ev)
             ev2["cat"] = cat
             all_events.append(ev2)
-
     return all_events
 
 
-def refresh_all_ical(config: dict) -> None:
-    """Force-refresh every iCal source (used by background thread and /api/reload)."""
-    for src in config.get("ical_urls", []):
-        url = src if isinstance(src, str) else src.get("url", "")
-        if url:
-            events = _fetch_ical(url)
-            _store_cache(url, events)
-    print(f"[ical] refreshed {datetime.now().strftime('%H:%M:%S')}", flush=True)
+# ─────────────────────────────────────────
+# Vikunja client (subproject-backed pages)
+# ─────────────────────────────────────────
+_vk_cache: dict = {}   # project_id -> {"tree": {...}, "fetched_at": float}
+_vk_lock = threading.Lock()
+
+
+def _vk_token(vk: dict) -> str:
+    tok = vk.get("token")
+    if tok:
+        return tok
+    return os.environ.get(vk.get("token_env", "VIKUNJA_TOKEN"), "")
+
+
+def _vk_request(api_base: str, path: str, token: str, params: dict | None = None):
+    url = api_base.rstrip("/") + path
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "TackEff-Dashboard/1.0",
+            "Accept": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return json.loads(resp.read().decode("utf-8", errors="replace"))
+
+
+def _vk_paginated(api_base: str, path: str, token: str, params: dict | None = None) -> list:
+    params = dict(params or {})
+    params.setdefault("per_page", 50)
+    out: list = []
+    page = 1
+    while page <= 100:
+        params["page"] = page
+        batch = _vk_request(api_base, path, token, params)
+        if not isinstance(batch, list) or not batch:
+            break
+        out.extend(batch)
+        if len(batch) < params["per_page"]:
+            break
+        page += 1
+    return out
+
+
+def _fetch_vikunja_tree(vk: dict, project_id: int, ttl: float) -> dict:
+    """Fetch a Vikunja project, its subprojects, and each subproject's tasks.
+
+    On fetch failure, falls back to the last cached tree if one exists.
+    """
+    now = time.time()
+    with _vk_lock:
+        ent = _vk_cache.get(project_id)
+    if ent and (now - ent["fetched_at"]) < ttl:
+        return ent["tree"]
+
+    api_base = vk.get("base_url", "").rstrip("/") + "/api/v1"
+    token = _vk_token(vk)
+    try:
+        proj = _vk_request(api_base, f"/projects/{project_id}", token)
+        all_projects = _vk_paginated(api_base, "/projects", token)
+        subs = [p for p in all_projects
+                if isinstance(p, dict) and p.get("parent_project_id") == project_id]
+        subs.sort(key=lambda p: (p.get("position") or 0, p.get("id") or 0))
+
+        tree = {
+            "title": proj.get("title") or f"Project {project_id}",
+            "subprojects": [],
+        }
+        for s in subs:
+            tasks = _vk_paginated(
+                api_base, f"/projects/{s['id']}/tasks", token,
+                {"sort_by": "index", "order_by": "asc"},
+            )
+            tasks = [t for t in tasks if isinstance(t, dict)]
+            tasks.sort(key=lambda t: (t.get("index")
+                                      if t.get("index") is not None
+                                      else (t.get("id") or 0)))
+            tree["subprojects"].append({
+                "id": s["id"],
+                "title": s.get("title") or f"#{s['id']}",
+                "tasks": tasks,
+            })
+    except Exception as exc:
+        print(f"[vikunja] fetch error project {project_id}: {exc}", file=sys.stderr)
+        if ent:
+            return ent["tree"]
+        raise
+
+    with _vk_lock:
+        _vk_cache[project_id] = {"tree": tree, "fetched_at": now}
+    return tree
+
+
+def _vk_task_owner(t: dict) -> str:
+    assignees = t.get("assignees") or []
+    if assignees:
+        u = assignees[0]
+        return u.get("name") or u.get("username") or ""
+    return ""
+
+
+def _vk_task_progress(t: dict) -> float:
+    if t.get("done"):
+        return 1.0
+    pd = t.get("percent_done")
+    if pd is None:
+        return 0.0
+    try:
+        pd = float(pd)
+    except (TypeError, ValueError):
+        return 0.0
+    if pd > 1:
+        pd = pd / 100.0
+    return max(0.0, min(1.0, pd))
+
+
+def _card_data_from_tree(tree: dict) -> dict:
+    cards = []
+    for s in tree["subprojects"]:
+        tasks = [
+            {
+                "name": t.get("title") or "Untitled",
+                "owner": _vk_task_owner(t),
+                "done": bool(t.get("done")),
+            }
+            for t in s["tasks"]
+        ]
+        cards.append({"name": s["title"], "code": f"#{s['id']}", "tasks": tasks})
+    return {"title": tree["title"], "cards": cards}
+
+
+def _gantt_data_from_tree(tree: dict) -> dict:
+    subs = tree["subprojects"]
+    columns = ([t.get("title") or f"T{i+1}"
+                for i, t in enumerate(subs[0]["tasks"])] if subs else [])
+    rows = []
+    for s in subs:
+        cells, ps = [], []
+        for i in range(len(columns)):
+            if i < len(s["tasks"]):
+                p = _vk_task_progress(s["tasks"][i])
+                st = "done" if p >= 1.0 else "idle" if p <= 0.0 else "ok"
+                cells.append({"s": st, "p": round(p, 3), "d": 0})
+                ps.append(p)
+            else:
+                cells.append({"s": "idle", "p": 0.0, "d": 0})
+                ps.append(0.0)
+        overall = round(sum(ps) / len(ps), 3) if ps else 0.0
+        if ps and all(x >= 1.0 for x in ps):
+            status = "done"
+        elif not ps or all(x <= 0.0 for x in ps):
+            status = "idle"
+        else:
+            status = "ok"
+        rows.append({
+            "name": s["title"], "code": f"#{s['id']}",
+            "cells": cells, "overall": overall, "status": status,
+        })
+    return {"title": tree["title"], "columns": columns, "rows": rows}
+
+
+# ─────────────────────────────────────────
+# Page assembly (template + source binding)
+# ─────────────────────────────────────────
+
+def _default_pages(config: dict) -> list[dict]:
+    """Backward-compatible pages when config has no explicit `pages`."""
+    return [
+        {"id": "calendar-1", "template": "calendar",
+         "ical_urls": config.get("ical_urls", [])},
+        {"id": "projects-1", "template": "pseudo_gantt",
+         "local_json": "projects.json"},
+        {"id": "capabilities-1", "template": "card",
+         "local_json": "capabilities.json"},
+    ]
+
+
+def _build_calendar_page(config: dict, pc: dict) -> dict:
+    sources = pc.get("ical_urls") or config.get("ical_urls", [])
+    events = _events_from_sources(
+        sources, config.get("reload_interval_seconds", 300))
+    cd = pc.get("countdown") or config.get("countdown", {}) or {}
+    return {
+        "title": pc.get("name") or "Calendar",
+        "events": events,
+        "countdown": {
+            "label": cd.get("label", "Critical Deadline"),
+            "target": cd.get("target", ""),
+            "targetLabel": cd.get("target_label", cd.get("targetLabel", "TBD")),
+        },
+    }
+
+
+def _build_local_page(config: dict, pc: dict, tpl: str) -> dict:
+    with open(CONFIG_DIR / pc["local_json"], encoding="utf-8") as f:
+        content = json.load(f)
+    if tpl == "card":
+        cards = [
+            {"name": c.get("name"), "code": c.get("code", ""),
+             "tasks": c.get("tasks", [])}
+            for c in content
+        ]
+        return {"title": pc.get("name") or "Capabilities", "cards": cards}
+    rows = []
+    for p in content:
+        cells = [
+            {"s": ph.get("s", "idle"), "p": ph.get("p", 0.0), "d": ph.get("d", 0)}
+            for ph in p.get("phases", [])
+        ]
+        rows.append({
+            "name": p.get("name"), "code": p.get("code", ""), "cells": cells,
+            "overall": p.get("overall", 0.0), "status": p.get("status", "idle"),
+        })
+    return {
+        "title": pc.get("name") or "Projects",
+        "columns": config.get("phases", []),
+        "rows": rows,
+        "countdown": config.get("countdown", {}),
+    }
+
+
+def _build_vikunja_page(config: dict, pc: dict, tpl: str) -> dict:
+    if pc.get("local_json"):
+        return _build_local_page(config, pc, tpl)
+    vk = config.get("vikunja") or {}
+    pid = pc.get("vikunja_project_id")
+    if not vk.get("base_url") or pid is None:
+        return {"title": pc.get("name") or tpl,
+                "error": "Vikunja not configured for this page"}
+    tree = _fetch_vikunja_tree(
+        vk, pid, config.get("reload_interval_seconds", 300))
+    data = (_card_data_from_tree(tree) if tpl == "card"
+            else _gantt_data_from_tree(tree))
+    if pc.get("name"):
+        data["title"] = pc["name"]
+    return data
+
+
+def build_pages(config: dict) -> list[dict]:
+    pages_cfg = config.get("pages") or _default_pages(config)
+    out = []
+    for i, pc in enumerate(pages_cfg):
+        tpl = pc.get("template")
+        pid = pc.get("id") or f"{tpl or 'page'}-{i+1}"
+        try:
+            if tpl == "calendar":
+                data = _build_calendar_page(config, pc)
+            elif tpl in ("card", "pseudo_gantt"):
+                data = _build_vikunja_page(config, pc, tpl)
+            else:
+                data = {"title": pc.get("name") or str(tpl),
+                        "error": f"Unknown template: {tpl}"}
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            data = {"title": pc.get("name") or str(tpl), "error": str(exc)}
+        out.append({
+            "id": pid,
+            "template": tpl,
+            "name": data.get("title") or pc.get("name") or str(tpl),
+            "data": data,
+        })
+    return out
+
+
+def refresh_all(config: dict) -> None:
+    """Pre-warm caches for every page (background thread + /api/reload)."""
+    try:
+        build_pages(config)
+        print(f"[refresh] {datetime.now().strftime('%H:%M:%S')}", flush=True)
+    except Exception as exc:
+        print(f"[refresh] {exc}", file=sys.stderr)
 
 
 # ─────────────────────────────────────────
@@ -239,7 +502,7 @@ def _start_refresh_thread() -> None:
                 cfg = load_config()
                 interval = cfg.get("reload_interval_seconds", 300)
                 time.sleep(interval)
-                refresh_all_ical(cfg)
+                refresh_all(cfg)
             except Exception as exc:
                 print(f"[refresh-thread] {exc}", file=sys.stderr)
 
@@ -330,37 +593,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _api_data(self) -> None:
         try:
             config = load_config()
-
-            with open(CONFIG_DIR / "projects.json", encoding="utf-8") as f:
-                projects = json.load(f)
-            with open(CONFIG_DIR / "capabilities.json", encoding="utf-8") as f:
-                capabilities = json.load(f)
-
-            events = get_all_events(config)
-
-            cd = config.get("countdown", {})
-            countdown = {
-                "label": cd.get("label", "Critical Deadline"),
-                "target": cd.get("target", ""),
-                "targetLabel": cd.get("target_label", "TBD"),
-            }
-
-            phases = config.get(
-                "phases",
-                [
-                    "Initial Concept", "Hardware Design", "Software Design",
-                    "Hardware Purchase", "Hardware Received", "Initial Build",
-                    "Dry Run", "Final Build", "Deploy",
-                ],
-            )
-
             self._send_json(
                 {
-                    "events": events,
-                    "projects": projects,
-                    "capabilities": capabilities,
-                    "phases": phases,
-                    "countdown": countdown,
+                    "pages": build_pages(config),
                     "reload_interval_seconds": config.get("reload_interval_seconds", 300),
                     "last_updated": datetime.now().isoformat(),
                 }
@@ -377,12 +612,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
             with _config_lock:
                 _config_mtime = 0.0
             config = load_config()
-            # Clear iCal cache so next request re-fetches
+            # Clear source caches so next request re-fetches
             with _ical_lock:
                 _ical_cache.clear()
+            with _vk_lock:
+                _vk_cache.clear()
             # Eagerly refresh in background to avoid making caller wait
             t = threading.Thread(
-                target=refresh_all_ical, args=(config,), daemon=True
+                target=refresh_all, args=(config,), daemon=True
             )
             t.start()
             self._send_json({"ok": True, "reloaded_at": datetime.now().isoformat()})
