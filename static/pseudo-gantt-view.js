@@ -84,7 +84,7 @@
         ${countdownHtml}
       </div>
 
-      <div class="ps-board" style="grid-template-rows: 64px repeat(${Math.max(rows.length, 1)}, 1fr);">
+      <div class="ps-board" style="grid-template-columns: 280px repeat(${Math.max(columns.length, 1)}, 1fr) 200px; grid-template-rows: 64px repeat(${Math.max(rows.length, 1)}, 1fr);">
         ${headHtml}
         ${rowsHtml}
       </div>

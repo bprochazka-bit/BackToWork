@@ -673,6 +673,27 @@ html, body {
 .ps-legend-item { display: flex; align-items: center; gap: 10px; }
 .ps-legend-swatch { width: 14px; height: 14px; border: 1px solid var(--line); }
 
+/* Kanban cells (reuses .ps board grid) */
+.kb-cell {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px;
+}
+.kb-num {
+  font-family: var(--font-mono); font-size: 44px; font-weight: 500;
+  line-height: 1; font-variant-numeric: tabular-nums; color: var(--fg-1);
+}
+.kb-label {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.24em;
+  text-transform: uppercase; color: var(--fg-3);
+}
+.kb-cell.s-idle .kb-num { color: var(--fg-3); }
+.kb-cell.s-ok .kb-num { color: var(--ok); }
+.kb-cell.s-done { background: var(--done-soft); }
+.kb-cell.s-done .kb-num,
+.kb-cell.s-done .kb-label { color: var(--done); }
+.kb-total { background: var(--bg-2); }
+.kb-total .kb-num { color: var(--accent); }
+
 /* ==================================================
    CAPABILITIES VIEW
    ================================================== */
@@ -717,7 +738,7 @@ html, body {
 .cap-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   grid-auto-rows: 1fr;
   gap: 20px;
   min-height: 0;

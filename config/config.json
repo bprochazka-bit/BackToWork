@@ -48,7 +48,7 @@
   ],
 
   "_notes": {
-    "pages": "Each page = one View Template + one data source. Templates: 'calendar' (iCal-backed), 'card' (Vikunja Card View), 'pseudo_gantt' (Vikunja Project View). You can add multiple pages per template. Pages render and rotate in array order.",
+    "pages": "Each page = one View Template + one data source. Templates: 'calendar' (iCal-backed), 'card' (Vikunja Card View), 'pseudo_gantt' (Vikunja Project View), 'kanban' (Vikunja Kanban View — first subproject's buckets become swimlanes; rows show per-lane task counts; an empty lane with no tasks in any preceding lane reads 'Completed'). You can add multiple pages per template. Pages render and rotate in array order.",
     "page.id": "Stable identifier used for rotation order + tweaks. Optional; auto-generated if omitted.",
     "page.name": "Overrides the page title. If omitted, the Vikunja project name is used (calendar defaults to 'Calendar').",
     "card_and_pseudo_gantt_source": "Set 'vikunja_project_id' to the Vikunja project whose SUBPROJECTS populate the view. Card View = one card per subproject (tasks listed, completed/total counted). Project View = first subproject's tasks define the columns; every subproject is a row with cells aligned by task position showing completion. For an offline demo, use 'local_json' instead (projects.json / capabilities.json).",

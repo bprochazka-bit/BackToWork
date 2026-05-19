@@ -46,14 +46,15 @@ BackToWork/
     ├── calendar-view.js         # Calendar template (iCal-backed)
     ├── card-view.js             # Card View template (Vikunja-backed)
     ├── pseudo-gantt-view.js     # Project View template (Vikunja-backed)
+    ├── kanban-view.js           # Kanban View template (Vikunja-backed)
     ├── tweaks.js                # Runtime tweaks panel (press 't')
     └── sample.ics               # Demo calendar data
 ```
 
 Each view is a **template** registered in `window.VIEW_TEMPLATES`
-(`calendar`, `card`, `pseudo_gantt`). A **page** = one template + one
-source. Add a new template by registering one render function and adding
-a page entry in `config.json`.
+(`calendar`, `card`, `pseudo_gantt`, `kanban`). A **page** = one template
++ one source. Add a new template by registering one render function and
+adding a page entry in `config.json`.
 
 ---
 
@@ -84,12 +85,15 @@ a page entry in `config.json`.
   - `calendar` → `ical_urls` (list of strings or `{url, category}`;
     category 1–5 sets event color: 1=Sync 2=Review 3=External 4=Field
     5=Offsite).
-  - `card` / `pseudo_gantt` → `vikunja_project_id`. The view title is the
-    Vikunja project name; its **subprojects** populate the view.
-    **Card View** = one card per subproject (its tasks listed,
+  - `card` / `pseudo_gantt` / `kanban` → `vikunja_project_id`. The view
+    title is the Vikunja project name; its **subprojects** populate the
+    view. **Card View** = one card per subproject (its tasks listed,
     completed/total counted). **Project View** = the first subproject's
     tasks become the column headers; every subproject is a row with cells
-    aligned by task position showing completion.
+    aligned by task position showing completion. **Kanban View** = the
+    first subproject's kanban buckets become the swimlanes; every
+    subproject is a row showing its task count per lane (an empty lane
+    with no tasks in any preceding lane reads "Completed").
   - For an offline demo, replace the Vikunja source with
     `"local_json": "projects.json"` (or `capabilities.json`).
 - **`vikunja.base_url`** — host root (no `/api/v1`). Provide the API token

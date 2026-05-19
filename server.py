@@ -261,6 +261,44 @@ def _vk_paginated(api_base: str, path: str, token: str, params: dict | None = No
     return out
 
 
+def _vk_buckets(api_base: str, token: str, pid: int) -> list:
+    """Return kanban buckets for a project, ordered by position.
+
+    Handles both the views-aware API (Vikunja >= 0.22) and the legacy
+    /projects/{id}/buckets endpoint. Returns [] if neither works.
+    """
+    buckets = None
+    try:
+        views = _vk_request(api_base, f"/projects/{pid}/views", token)
+        if isinstance(views, list):
+            kb = next((v for v in views
+                       if str(v.get("view_kind", "")).lower() == "kanban"), None)
+            if kb:
+                buckets = _vk_request(
+                    api_base,
+                    f"/projects/{pid}/views/{kb['id']}/buckets", token)
+    except Exception:
+        buckets = None
+    if not isinstance(buckets, list):
+        try:
+            buckets = _vk_request(api_base, f"/projects/{pid}/buckets", token)
+        except Exception:
+            buckets = []
+    if not isinstance(buckets, list):
+        return []
+    norm = [
+        {
+            "id": b.get("id"),
+            "title": b.get("title") or f"Lane {b.get('id')}",
+            "position": b.get("position") or 0,
+            "tasks": b.get("tasks") or [],
+        }
+        for b in buckets if isinstance(b, dict)
+    ]
+    norm.sort(key=lambda b: (b["position"], b["id"] or 0))
+    return norm
+
+
 def _fetch_vikunja_tree(vk: dict, project_id: int, ttl: float) -> dict:
     """Fetch a Vikunja project, its subprojects, and each subproject's tasks.
 
@@ -298,6 +336,7 @@ def _fetch_vikunja_tree(vk: dict, project_id: int, ttl: float) -> dict:
                 "id": s["id"],
                 "title": s.get("title") or f"#{s['id']}",
                 "tasks": tasks,
+                "buckets": _vk_buckets(api_base, token, s["id"]),
             })
     except Exception as exc:
         print(f"[vikunja] fetch error project {project_id}: {exc}", file=sys.stderr)
@@ -378,6 +417,40 @@ def _gantt_data_from_tree(tree: dict) -> dict:
     return {"title": tree["title"], "columns": columns, "rows": rows}
 
 
+def _kanban_data_from_tree(tree: dict) -> dict:
+    """First subproject's buckets define the swimlanes; every subproject
+    is a row counting its tasks per lane (matched by bucket title)."""
+    subs = tree["subprojects"]
+    lanes = [b["title"] for b in subs[0]["buckets"]] if subs else []
+    lane_idx = {name: i for i, name in enumerate(lanes)}
+
+    rows = []
+    for s in subs:
+        counts = [0] * len(lanes)
+        bid_title = {b["id"]: b["title"] for b in s["buckets"]}
+        matched = False
+        for t in s["tasks"]:
+            title = bid_title.get(t.get("bucket_id"))
+            i = lane_idx.get(title)
+            if i is not None:
+                counts[i] += 1
+                matched = True
+        # Fallback: tasks didn't carry a usable bucket_id — use the
+        # task lists embedded in the bucket objects, matched by title.
+        if not matched and s["tasks"]:
+            for b in s["buckets"]:
+                i = lane_idx.get(b["title"])
+                if i is not None:
+                    counts[i] = len(b.get("tasks") or [])
+        rows.append({
+            "name": s["title"],
+            "code": f"#{s['id']}",
+            "counts": counts,
+            "total": sum(counts),
+        })
+    return {"title": tree["title"], "lanes": lanes, "rows": rows}
+
+
 # ─────────────────────────────────────────
 # Page assembly (template + source binding)
 # ─────────────────────────────────────────
@@ -448,8 +521,12 @@ def _build_vikunja_page(config: dict, pc: dict, tpl: str) -> dict:
                 "error": "Vikunja not configured for this page"}
     tree = _fetch_vikunja_tree(
         vk, pid, config.get("reload_interval_seconds", 300))
-    data = (_card_data_from_tree(tree) if tpl == "card"
-            else _gantt_data_from_tree(tree))
+    if tpl == "card":
+        data = _card_data_from_tree(tree)
+    elif tpl == "kanban":
+        data = _kanban_data_from_tree(tree)
+    else:
+        data = _gantt_data_from_tree(tree)
     if pc.get("name"):
         data["title"] = pc["name"]
     return data
@@ -464,7 +541,7 @@ def build_pages(config: dict) -> list[dict]:
         try:
             if tpl == "calendar":
                 data = _build_calendar_page(config, pc)
-            elif tpl in ("card", "pseudo_gantt"):
+            elif tpl in ("card", "pseudo_gantt", "kanban"):
                 data = _build_vikunja_page(config, pc, tpl)
             else:
                 data = {"title": pc.get("name") or str(tpl),

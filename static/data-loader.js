@@ -9,6 +9,7 @@
     "calendar-view.js",
     "card-view.js",
     "pseudo-gantt-view.js",
+    "kanban-view.js",
     "tweaks.js",
     "dashboard.js",
   ];
