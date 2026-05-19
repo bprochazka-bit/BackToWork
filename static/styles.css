@@ -720,7 +720,9 @@ html, body {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.24em;
   text-transform: uppercase; color: var(--done);
 }
+.kb-den { font-size: 22px; color: var(--fg-3); }
 .kb-cell.s-idle .kb-num { color: var(--fg-3); }
+.kb-cell.s-idle .kb-den { color: var(--fg-3); }
 .kb-cell.s-ok .kb-num { color: var(--ok); }
 .kb-cell.s-done { background: var(--done-soft); }
 .kb-cell.s-done .kb-num,

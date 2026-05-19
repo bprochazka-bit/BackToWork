@@ -47,14 +47,15 @@ BackToWork/
     ├── card-view.js             # Card View template (Vikunja-backed)
     ├── pseudo-gantt-view.js     # Project View template (Vikunja-backed)
     ├── kanban-view.js           # Kanban View template (Vikunja-backed)
+    ├── lyteworks-view.js        # Lyteworks Slide template (Course Architect)
     ├── tweaks.js                # Runtime tweaks panel (press 't')
     └── sample.ics               # Demo calendar data
 ```
 
 Each view is a **template** registered in `window.VIEW_TEMPLATES`
-(`calendar`, `card`, `pseudo_gantt`, `kanban`). A **page** = one template
-+ one source. Add a new template by registering one render function and
-adding a page entry in `config.json`.
+(`calendar`, `card`, `pseudo_gantt`, `kanban`, `lyteworks`). A **page** =
+one template + one source. Add a new template by registering one render
+function and adding a page entry in `config.json`.
 
 ---
 
@@ -95,6 +96,13 @@ adding a page entry in `config.json`.
     each cell is that lane's task count. Row width scales with the
     project's lane count, capped so one lane never spans the whole row.
     An empty lane with no tasks in any preceding lane reads "Completed".
+  - `lyteworks` → `lyteworks_course_id`. Pulls a Course Architect
+    course's slide-deck-status dashboard. One row per module; each of
+    the 5 production phases (Topic Validation, Content Review,
+    Formatting Review, Sign Off, Dry Run) shows decks-complete / total
+    decks, color-coded (green = all, amber = partial, grey = none). A
+    lecture with no slide deck counts as one incomplete deck toward the
+    totals. Requires the `lyteworks.base_url` block.
   - For an offline demo, replace the Vikunja source with
     `"local_json": "projects.json"` (or `capabilities.json`).
 - **`vikunja.base_url`** — host root (no `/api/v1`). Provide the API token

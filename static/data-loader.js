@@ -10,6 +10,7 @@
     "card-view.js",
     "pseudo-gantt-view.js",
     "kanban-view.js",
+    "lyteworks-view.js",
     "tweaks.js",
     "dashboard.js",
   ];

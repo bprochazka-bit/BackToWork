@@ -446,6 +446,138 @@ def _kanban_data_from_tree(tree: dict) -> dict:
 
 
 # ─────────────────────────────────────────
+# Lyteworks / Course Architect (slide-deck status)
+# ─────────────────────────────────────────
+_lw_cache: dict = {}   # course_id -> {"status": {...}, "fetched_at": float}
+_lw_lock = threading.Lock()
+
+LW_PHASES = [
+    "topic_validation", "content_review", "formatting_review",
+    "sign_off", "dry_run",
+]
+LW_PHASE_LABELS = {
+    "topic_validation": "Topic Validation",
+    "content_review": "Content Review",
+    "formatting_review": "Formatting Review",
+    "sign_off": "Sign Off",
+    "dry_run": "Dry Run",
+}
+
+
+def _fetch_lyteworks_status(lw: dict, course_id, ttl: float) -> dict:
+    """GET the slide-deck-status dashboard for a course. Falls back to
+    the last cached payload on a fetch failure."""
+    now = time.time()
+    with _lw_lock:
+        ent = _lw_cache.get(course_id)
+    if ent and (now - ent["fetched_at"]) < ttl:
+        return ent["status"]
+
+    base = lw.get("base_url", "").rstrip("/")
+    headers = {
+        "User-Agent": "TackEff-Dashboard/1.0",
+        "Accept": "application/json",
+    }
+    token = lw.get("token") or os.environ.get(
+        lw.get("token_env", "LYTEWORKS_TOKEN"), "")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    url = f"{base}/api/courses/{course_id}/slide-deck-status"
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            status = json.loads(resp.read().decode("utf-8", errors="replace"))
+    except Exception as exc:
+        print(f"[lyteworks] fetch error course {course_id}: {exc}",
+              file=sys.stderr)
+        if ent:
+            return ent["status"]
+        raise
+
+    with _lw_lock:
+        _lw_cache[course_id] = {"status": status, "fetched_at": now}
+    return status
+
+
+def _lw_name(node: dict, default: str = "") -> str:
+    return (node.get("name") or node.get("title")
+            or node.get("label") or default)
+
+
+def _lw_deck_phase_map(deck: dict) -> dict:
+    """Return a {phase: bool} map for a deck, tolerating a few likely
+    field names for the per-phase completion data."""
+    for key in ("phases", "phase_completion", "completion",
+                "completion_map", "phase_status"):
+        m = deck.get(key)
+        if isinstance(m, dict):
+            return m
+    # Deck-level "done" status implies every phase is complete.
+    if str(deck.get("status", "")).lower() == "done":
+        return {p: True for p in LW_PHASES}
+    return {}
+
+
+def _lw_phase_done(pmap: dict, phase: str) -> bool:
+    v = pmap.get(phase)
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.lower() in ("done", "complete", "completed", "true", "yes")
+    if isinstance(v, dict):
+        return bool(v.get("done") or v.get("complete") or v.get("completed"))
+    return bool(v)
+
+
+def _lyteworks_data_from_status(status: dict) -> dict:
+    """One row per module. Each of the 5 phases gets a count of decks
+    complete for that phase over the module's total deck count. A
+    lecture with no deck counts as one (incomplete) deck toward totals.
+    """
+    rows = []
+    for m in status.get("modules", []) or []:
+        total_decks = 0
+        done = [0] * len(LW_PHASES)
+        lectures = m.get("lectures", []) or []
+        for lec in lectures:
+            decks = lec.get("decks", []) or []
+            if not decks:
+                # Deckless lecture: counts toward the total, complete
+                # for no phase.
+                total_decks += 1
+                continue
+            for deck in decks:
+                total_decks += 1
+                pmap = _lw_deck_phase_map(deck)
+                for i, ph in enumerate(LW_PHASES):
+                    if _lw_phase_done(pmap, ph):
+                        done[i] += 1
+
+        cells = []
+        for i in range(len(LW_PHASES)):
+            d, t = done[i], total_decks
+            s = ("done" if t > 0 and d == t
+                 else "idle" if d == 0 else "ok")
+            cells.append({"done": d, "total": t, "s": s})
+
+        dl = m.get("done_lectures")
+        tl = m.get("total_lectures", len(lectures))
+        rows.append({
+            "name": _lw_name(m, "Module"),
+            "code": (f"{dl}/{tl} lectures" if dl is not None
+                     else f"{tl} lectures"),
+            "total": total_decks,
+            "cells": cells,
+        })
+
+    return {
+        "title": _lw_name(status, "Slide Production"),
+        "phases": [LW_PHASE_LABELS[p] for p in LW_PHASES],
+        "rows": rows,
+    }
+
+
+# ─────────────────────────────────────────
 # Page assembly (template + source binding)
 # ─────────────────────────────────────────
 
@@ -526,6 +658,20 @@ def _build_vikunja_page(config: dict, pc: dict, tpl: str) -> dict:
     return data
 
 
+def _build_lyteworks_page(config: dict, pc: dict) -> dict:
+    lw = config.get("lyteworks") or {}
+    cid = pc.get("lyteworks_course_id")
+    if not lw.get("base_url") or cid is None:
+        return {"title": pc.get("name") or "Lyteworks Slide",
+                "error": "Lyteworks not configured for this page"}
+    status = _fetch_lyteworks_status(
+        lw, cid, config.get("reload_interval_seconds", 300))
+    data = _lyteworks_data_from_status(status)
+    if pc.get("name"):
+        data["title"] = pc["name"]
+    return data
+
+
 def build_pages(config: dict) -> list[dict]:
     pages_cfg = config.get("pages") or _default_pages(config)
     out = []
@@ -537,6 +683,8 @@ def build_pages(config: dict) -> list[dict]:
                 data = _build_calendar_page(config, pc)
             elif tpl in ("card", "pseudo_gantt", "kanban"):
                 data = _build_vikunja_page(config, pc, tpl)
+            elif tpl == "lyteworks":
+                data = _build_lyteworks_page(config, pc)
             else:
                 data = {"title": pc.get("name") or str(tpl),
                         "error": f"Unknown template: {tpl}"}
@@ -688,6 +836,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 _ical_cache.clear()
             with _vk_lock:
                 _vk_cache.clear()
+            with _lw_lock:
+                _lw_cache.clear()
             # Eagerly refresh in background to avoid making caller wait
             t = threading.Thread(
                 target=refresh_all, args=(config,), daemon=True
