@@ -83,9 +83,11 @@ function and adding a page entry in `config.json`.
 
 - **`pages`** — ordered list. Each entry binds one **template** to one
   source. Pages render and rotate in array order.
-  - `calendar` → `ical_urls` (list of strings or `{url, category}`;
-    category 1–5 sets event color: 1=Sync 2=Review 3=External 4=Field
-    5=Offsite).
+  - `calendar` → `ical_urls` (list of strings or
+    `{url, category, color, name}`; category 1–5 sets event color:
+    1=Sync 2=Review 3=External 4=Field 5=Offsite). Optional per-source
+    `color` (any CSS color) and `name` (legend label) override the
+    category color/label for that calendar.
   - `card` / `pseudo_gantt` / `kanban` → `vikunja_project_id`. The view
     title is the Vikunja project name; its **subprojects** populate the
     view. **Card View** = one card per subproject (its tasks listed,

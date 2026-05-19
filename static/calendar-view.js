@@ -17,6 +17,8 @@
     end: e.end ? new Date(e.end) : null,
     loc: e.loc || "",
     cat: e.cat || 1,
+    color: e.color || "",
+    catName: e.catName || "",
   })).filter((e) => e.start);
 
   const today = new Date();
@@ -72,7 +74,7 @@
     const cls = `cal-cell ${isToday ? "is-today" : ""} ${!isInMonth ? "is-other" : ""}`;
 
     const evHtml = dayEvents.slice(0, 3).map((e) => `
-      <div class="cal-event c-${e.cat}">
+      <div class="cal-event c-${e.cat}"${e.color ? ` style="border-left-color:${e.color}"` : ""}>
         <span class="t">${fmtTime(e.start)}</span>
         <span>${e.title}</span>
       </div>
@@ -116,7 +118,7 @@
             <span>${e.loc}</span>
           </div>
         </div>
-        <div class="cal-up-tag c-${e.cat}">${catLabel(e.cat)}</div>
+        <div class="cal-up-tag c-${e.cat}"${e.color ? ` style="border-color:${e.color};color:${e.color}"` : ""}>${e.catName || catLabel(e.cat)}</div>
       </div>
     `;
   }).join("");

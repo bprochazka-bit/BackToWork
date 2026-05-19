@@ -194,11 +194,14 @@ def _events_from_sources(sources: list, reload_interval: float) -> list[dict]:
     """Return merged events from a list of iCal source entries."""
     all_events: list[dict] = []
     for src in sources:
+        color = name = ""
         if isinstance(src, str):
             url, cat = src, 1
         else:
             url = src.get("url", "")
             cat = src.get("category", 1)
+            color = src.get("color", "") or ""
+            name = src.get("name", "") or ""
         if not url:
             continue
 
@@ -210,6 +213,10 @@ def _events_from_sources(sources: list, reload_interval: float) -> list[dict]:
         for ev in cached:
             ev2 = dict(ev)
             ev2["cat"] = cat
+            if color:
+                ev2["color"] = color
+            if name:
+                ev2["catName"] = name
             all_events.append(ev2)
     return all_events
 
