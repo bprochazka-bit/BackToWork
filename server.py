@@ -500,8 +500,9 @@ def _fetch_lyteworks_status(lw: dict, course_id, ttl: float) -> dict:
 
 
 def _lw_name(node: dict, default: str = "") -> str:
-    return (node.get("name") or node.get("title")
-            or node.get("label") or default)
+    return (node.get("module_name") or node.get("course_name")
+            or node.get("lesson_title") or node.get("name")
+            or node.get("title") or node.get("label") or default)
 
 
 def _lw_deck_phase_map(deck: dict) -> dict:
