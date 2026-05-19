@@ -418,37 +418,31 @@ def _gantt_data_from_tree(tree: dict) -> dict:
 
 
 def _kanban_data_from_tree(tree: dict) -> dict:
-    """First subproject's buckets define the swimlanes; every subproject
-    is a row counting its tasks per lane (matched by bucket title)."""
-    subs = tree["subprojects"]
-    lanes = [b["title"] for b in subs[0]["buckets"]] if subs else []
-    lane_idx = {name: i for i, name in enumerate(lanes)}
-
+    """Each subproject shows its OWN kanban buckets as swimlanes."""
     rows = []
-    for s in subs:
-        counts = [0] * len(lanes)
-        bid_title = {b["id"]: b["title"] for b in s["buckets"]}
+    for s in tree["subprojects"]:
+        buckets = s["buckets"]
+        counts = {b["id"]: 0 for b in buckets}
         matched = False
         for t in s["tasks"]:
-            title = bid_title.get(t.get("bucket_id"))
-            i = lane_idx.get(title)
-            if i is not None:
-                counts[i] += 1
+            bid = t.get("bucket_id")
+            if bid in counts:
+                counts[bid] += 1
                 matched = True
         # Fallback: tasks didn't carry a usable bucket_id — use the
-        # task lists embedded in the bucket objects, matched by title.
+        # task lists embedded in the bucket objects.
         if not matched and s["tasks"]:
-            for b in s["buckets"]:
-                i = lane_idx.get(b["title"])
-                if i is not None:
-                    counts[i] = len(b.get("tasks") or [])
+            for b in buckets:
+                counts[b["id"]] = len(b.get("tasks") or [])
+        lanes = [{"name": b["title"], "count": counts.get(b["id"], 0)}
+                 for b in buckets]
         rows.append({
             "name": s["title"],
             "code": f"#{s['id']}",
-            "counts": counts,
-            "total": sum(counts),
+            "lanes": lanes,
+            "total": sum(l["count"] for l in lanes),
         })
-    return {"title": tree["title"], "lanes": lanes, "rows": rows}
+    return {"title": tree["title"], "rows": rows}
 
 
 # ─────────────────────────────────────────

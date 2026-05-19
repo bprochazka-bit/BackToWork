@@ -1,6 +1,7 @@
-/* Kanban View template — first source group's buckets define the
-   swimlanes; every group is a row counting its tasks per lane.
-   An empty lane with no tasks in any preceding lane reads "Completed". */
+/* Kanban View template — each subproject shows its OWN kanban buckets
+   as swimlanes. Row width scales with that project's lane count, capped
+   so a single lane never spans the whole row. An empty lane with no
+   tasks in any preceding lane reads "Completed". */
 
 (window.VIEW_TEMPLATES = window.VIEW_TEMPLATES || {}).kanban = function (host, data) {
   data = data || {};
@@ -12,48 +13,50 @@
     return;
   }
 
-  const lanes = data.lanes || [];
   const rows = data.rows || [];
-
-  let headHtml = `<div class="ps-head">Project</div>`;
-  lanes.forEach((name, i) => {
-    headHtml += `<div class="ps-head num"><span class="i">L${String(i + 1).padStart(2, "0")}</span><span>${name}</span></div>`;
-  });
-  headHtml += `<div class="ps-head">Total</div>`;
+  const LANE_W = 360;   // px per lane before the row hits its cap
+  const MAX_W = 3000;   // px — row never grows past this
 
   const rowsHtml = rows.map((proj) => {
-    const counts = proj.counts || [];
-    let precedingEmpty = true; // all lanes before the current one are empty
+    const lanes = proj.lanes || [];
+    let precedingEmpty = true;
 
-    const laneCells = lanes.map((_, i) => {
-      const n = counts[i] || 0;
+    const laneCells = lanes.map((lane) => {
+      const n = lane.count || 0;
       const completed = n === 0 && precedingEmpty;
       precedingEmpty = precedingEmpty && n === 0;
 
       if (completed) {
         return `
-          <div class="ps-cell kb-cell s-done">
+          <div class="kb-cell s-done">
             <div class="kb-num">✓</div>
-            <div class="kb-label">Completed</div>
+            <div class="kb-label">${lane.name}</div>
+            <div class="kb-tag">Completed</div>
           </div>`;
       }
       const cls = n === 0 ? "kb-cell s-idle" : "kb-cell s-ok";
       return `
-        <div class="ps-cell ${cls}">
+        <div class="${cls}">
           <div class="kb-num">${n}</div>
-          <div class="kb-label">${n === 1 ? "task" : "tasks"}</div>
+          <div class="kb-label">${lane.name}</div>
         </div>`;
     }).join("");
 
+    const lanesWidth = `min(${lanes.length} * ${LANE_W}px, ${MAX_W}px)`;
+
     return `
-      <div class="ps-cell ps-project">
-        <div class="ps-project-code">${proj.code || ""}</div>
-        <div class="ps-project-name">${proj.name}</div>
-      </div>
-      ${laneCells}
-      <div class="ps-cell kb-cell kb-total">
-        <div class="kb-num">${proj.total || 0}</div>
-        <div class="kb-label">total</div>
+      <div class="kb-row">
+        <div class="kb-rowhead">
+          <div class="kb-rowhead-code">${proj.code || ""}</div>
+          <div class="kb-rowhead-name">${proj.name}</div>
+        </div>
+        <div class="kb-lanes" style="width:${lanesWidth};">
+          ${laneCells || `<div class="kb-cell s-idle"><div class="kb-label">No lanes</div></div>`}
+        </div>
+        <div class="kb-cell kb-total">
+          <div class="kb-num">${proj.total || 0}</div>
+          <div class="kb-label">total</div>
+        </div>
       </div>
     `;
   }).join("");
@@ -63,12 +66,11 @@
       <div class="ps-header">
         <div>
           <h2 class="ps-title">${data.title || "Kanban"}</h2>
-          <div class="ps-sub">${rows.length} projects · ${lanes.length} swimlanes · refreshed live</div>
+          <div class="ps-sub">${rows.length} projects · per-project swimlanes · refreshed live</div>
         </div>
       </div>
 
-      <div class="ps-board" style="grid-template-columns: 280px repeat(${Math.max(lanes.length, 1)}, 1fr) 200px; grid-template-rows: 64px repeat(${Math.max(rows.length, 1)}, 1fr);">
-        ${headHtml}
+      <div class="kb-board">
         ${rowsHtml}
       </div>
 

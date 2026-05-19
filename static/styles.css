@@ -673,8 +673,36 @@ html, body {
 .ps-legend-item { display: flex; align-items: center; gap: 10px; }
 .ps-legend-swatch { width: 14px; height: 14px; border: 1px solid var(--line); }
 
-/* Kanban cells (reuses .ps board grid) */
+/* Kanban — per-project independent rows */
+.kb-board {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.kb-row {
+  flex: 1; min-height: 0;
+  display: flex; align-items: stretch; gap: 2px;
+}
+.kb-rowhead {
+  flex: 0 0 280px;
+  background: var(--bg-1); padding: 14px 16px;
+  display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  overflow: hidden;
+}
+.kb-rowhead-code {
+  font-family: var(--font-mono); font-size: 14px; letter-spacing: 0.2em;
+  color: var(--fg-3);
+}
+.kb-rowhead-name {
+  font-size: 26px; font-weight: 500; line-height: 1.1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kb-lanes {
+  flex: 0 0 auto;          /* width set inline: min(n*LANE, MAX) */
+  display: flex; gap: 2px; min-width: 0;
+}
 .kb-cell {
+  flex: 1 1 0; min-width: 0;
+  background: var(--bg-1); padding: 14px 16px;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 6px;
 }
@@ -683,15 +711,23 @@ html, body {
   line-height: 1; font-variant-numeric: tabular-nums; color: var(--fg-1);
 }
 .kb-label {
-  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.24em;
+  font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.18em;
   text-transform: uppercase; color: var(--fg-3);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kb-tag {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.24em;
+  text-transform: uppercase; color: var(--done);
 }
 .kb-cell.s-idle .kb-num { color: var(--fg-3); }
 .kb-cell.s-ok .kb-num { color: var(--ok); }
 .kb-cell.s-done { background: var(--done-soft); }
 .kb-cell.s-done .kb-num,
 .kb-cell.s-done .kb-label { color: var(--done); }
-.kb-total { background: var(--bg-2); }
+.kb-total {
+  flex: 0 0 160px; background: var(--bg-2);
+}
 .kb-total .kb-num { color: var(--accent); }
 
 /* ==================================================

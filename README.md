@@ -90,10 +90,11 @@ adding a page entry in `config.json`.
     view. **Card View** = one card per subproject (its tasks listed,
     completed/total counted). **Project View** = the first subproject's
     tasks become the column headers; every subproject is a row with cells
-    aligned by task position showing completion. **Kanban View** = the
-    first subproject's kanban buckets become the swimlanes; every
-    subproject is a row showing its task count per lane (an empty lane
-    with no tasks in any preceding lane reads "Completed").
+    aligned by task position showing completion. **Kanban View** = every
+    subproject is a row showing **its own** kanban buckets as swimlanes;
+    each cell is that lane's task count. Row width scales with the
+    project's lane count, capped so one lane never spans the whole row.
+    An empty lane with no tasks in any preceding lane reads "Completed".
   - For an offline demo, replace the Vikunja source with
     `"local_json": "projects.json"` (or `capabilities.json`).
 - **`vikunja.base_url`** — host root (no `/api/v1`). Provide the API token
