@@ -550,10 +550,17 @@ def _lw_phase_done(pmap: dict, phase: str) -> bool:
     return bool(v)
 
 
-def _lyteworks_data_from_status(status: dict) -> dict:
+def _lyteworks_data_from_status(
+        status: dict,
+        deckless_lesson_types: set | None = None) -> dict:
     """One row per module. Each of the 5 phases gets a count of decks
-    complete for that phase over the module's total deck count. A
-    lecture with no deck counts as one (incomplete) deck toward totals.
+    complete for that phase over the module's total deck count.
+
+    A lecture with no decks normally counts as one (incomplete) deck
+    toward totals. If `deckless_lesson_types` is provided (a set of
+    lowercased lesson_type values), only deckless lectures whose
+    `lesson_type` is in that set are counted; all other deckless
+    lectures are ignored entirely.
     """
     rows = []
     for m in status.get("modules", []) or []:
@@ -562,8 +569,17 @@ def _lyteworks_data_from_status(status: dict) -> dict:
         total_decks = 0
         done = [0] * len(LW_PHASES)
         done_lectures = 0
-        lectures = [lec for lec in (m.get("lectures") or [])
-                    if not _hidden(_lw_name(lec))]
+        lectures = []
+        for lec in (m.get("lectures") or []):
+            if _hidden(_lw_name(lec)):
+                continue
+            has_decks = any(not _hidden(d.get("name"))
+                            for d in (lec.get("decks") or []))
+            if not has_decks and deckless_lesson_types is not None:
+                lt = str(lec.get("lesson_type", "")).strip().lower()
+                if lt not in deckless_lesson_types:
+                    continue
+            lectures.append(lec)
         for lec in lectures:
             decks = [d for d in (lec.get("decks") or [])
                      if not _hidden(d.get("name"))]
@@ -697,7 +713,13 @@ def _build_lyteworks_page(config: dict, pc: dict) -> dict:
                 "error": "Lyteworks not configured for this page"}
     status = _fetch_lyteworks_status(
         lw, cid, config.get("reload_interval_seconds", 300))
-    data = _lyteworks_data_from_status(status)
+    raw = pc.get("deckless_lesson_types", lw.get("deckless_lesson_types"))
+    if raw is None:
+        deckless_types = None
+    else:
+        deckless_types = {t.strip().lower()
+                          for t in str(raw).split(",") if t.strip()}
+    data = _lyteworks_data_from_status(status, deckless_types)
     if pc.get("name"):
         data["title"] = pc["name"]
     return data

@@ -102,9 +102,14 @@ function and adding a page entry in `config.json`.
     course's slide-deck-status dashboard. One row per module; each of
     the 5 production phases (Topic Validation, Content Review,
     Formatting Review, Sign Off, Dry Run) shows decks-complete / total
-    decks, color-coded (green = all, amber = partial, grey = none). A
-    lecture with no slide deck counts as one incomplete deck toward the
-    totals. Requires the `lyteworks.base_url` block.
+    decks, color-coded (green = all, amber = partial, grey = none). By
+    default, a lecture with no slide deck counts as one incomplete deck
+    toward the totals. Set `deckless_lesson_types` (a comma-separated
+    list of `lesson_type` values, e.g. `"lecture,workshop"`) on the
+    page (or under `lyteworks` as a default) to restrict that behavior:
+    only deckless lectures whose `lesson_type` matches one of the
+    listed types are counted; all other deckless lectures are ignored
+    entirely. Requires the `lyteworks.base_url` block.
   - For an offline demo, replace the Vikunja source with
     `"local_json": "projects.json"` (or `capabilities.json`).
 - **`vikunja.base_url`** — host root (no `/api/v1`). Provide the API token
