@@ -114,6 +114,12 @@ function and adding a page entry in `config.json`.
 - **`countdown.target`** — optional ISO date on a `pseudo_gantt` page
   (or top-level default). Leave empty (`""`) to hide the countdown.
 
+**Hidden items.** Any project, subproject, task, bucket, module,
+lecture, deck, or calendar event whose name starts with `_` is filtered
+out of every data reader — it isn't displayed and isn't counted in any
+total or rollup. Useful for staging/private items that shouldn't appear
+on the TV dashboard.
+
 The config file is **live-reloaded** — edit and save; the server picks up the change on the next request (or on `/api/reload`).
 
 ---

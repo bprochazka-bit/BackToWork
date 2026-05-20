@@ -190,6 +190,12 @@ def _store_cache(url: str, events: list[dict]) -> None:
         _ical_cache[url] = {"events": events, "fetched_at": time.time()}
 
 
+def _hidden(name) -> bool:
+    """Anything whose display name starts with '_' is filtered out of
+    both the rendered output and any counts/totals."""
+    return isinstance(name, str) and name.startswith("_")
+
+
 def _events_from_sources(sources: list, reload_interval: float) -> list[dict]:
     """Return merged events from a list of iCal source entries."""
     all_events: list[dict] = []
@@ -211,6 +217,8 @@ def _events_from_sources(sources: list, reload_interval: float) -> list[dict]:
             _store_cache(url, cached)
 
         for ev in cached:
+            if _hidden(ev.get("title")):
+                continue
             ev2 = dict(ev)
             ev2["cat"] = cat
             if color:
@@ -323,7 +331,9 @@ def _fetch_vikunja_tree(vk: dict, project_id: int, ttl: float) -> dict:
         proj = _vk_request(api_base, f"/projects/{project_id}", token)
         all_projects = _vk_paginated(api_base, "/projects", token)
         subs = [p for p in all_projects
-                if isinstance(p, dict) and p.get("parent_project_id") == project_id]
+                if isinstance(p, dict)
+                and p.get("parent_project_id") == project_id
+                and not _hidden(p.get("title"))]
         subs.sort(key=lambda p: (p.get("position") or 0, p.get("id") or 0))
 
         tree = {
@@ -335,15 +345,18 @@ def _fetch_vikunja_tree(vk: dict, project_id: int, ttl: float) -> dict:
                 api_base, f"/projects/{s['id']}/tasks", token,
                 {"sort_by": "index", "order_by": "asc"},
             )
-            tasks = [t for t in tasks if isinstance(t, dict)]
+            tasks = [t for t in tasks
+                     if isinstance(t, dict) and not _hidden(t.get("title"))]
             tasks.sort(key=lambda t: (t.get("index")
                                       if t.get("index") is not None
                                       else (t.get("id") or 0)))
+            buckets = [b for b in _vk_buckets(api_base, token, s["id"])
+                       if not _hidden(b.get("title"))]
             tree["subprojects"].append({
                 "id": s["id"],
                 "title": s.get("title") or f"#{s['id']}",
                 "tasks": tasks,
-                "buckets": _vk_buckets(api_base, token, s["id"]),
+                "buckets": buckets,
             })
     except Exception as exc:
         print(f"[vikunja] fetch error project {project_id}: {exc}", file=sys.stderr)
@@ -544,22 +557,32 @@ def _lyteworks_data_from_status(status: dict) -> dict:
     """
     rows = []
     for m in status.get("modules", []) or []:
+        if _hidden(_lw_name(m)):
+            continue
         total_decks = 0
         done = [0] * len(LW_PHASES)
-        lectures = m.get("lectures", []) or []
+        done_lectures = 0
+        lectures = [lec for lec in (m.get("lectures") or [])
+                    if not _hidden(_lw_name(lec))]
         for lec in lectures:
-            decks = lec.get("decks", []) or []
+            decks = [d for d in (lec.get("decks") or [])
+                     if not _hidden(d.get("name"))]
             if not decks:
                 # Deckless lecture: counts toward the total, complete
                 # for no phase.
                 total_decks += 1
                 continue
+            lec_all_done = True
             for deck in decks:
                 total_decks += 1
                 pmap = _lw_deck_phase_map(deck)
                 for i, ph in enumerate(LW_PHASES):
                     if _lw_phase_done(pmap, ph):
                         done[i] += 1
+                    else:
+                        lec_all_done = False
+            if lec_all_done:
+                done_lectures += 1
 
         cells = []
         for i in range(len(LW_PHASES)):
@@ -568,12 +591,9 @@ def _lyteworks_data_from_status(status: dict) -> dict:
                  else "idle" if d == 0 else "ok")
             cells.append({"done": d, "total": t, "s": s})
 
-        dl = m.get("done_lectures")
-        tl = m.get("total_lectures", len(lectures))
         rows.append({
             "name": _lw_name(m, "Module"),
-            "code": (f"{dl}/{tl} lectures" if dl is not None
-                     else f"{tl} lectures"),
+            "code": f"{done_lectures}/{len(lectures)} lectures",
             "total": total_decks,
             "cells": cells,
         })
@@ -623,12 +643,15 @@ def _build_local_page(config: dict, pc: dict, tpl: str) -> dict:
     if tpl == "card":
         cards = [
             {"name": c.get("name"), "code": c.get("code", ""),
-             "tasks": c.get("tasks", [])}
-            for c in content
+             "tasks": [t for t in (c.get("tasks") or [])
+                       if not _hidden(t.get("name"))]}
+            for c in content if not _hidden(c.get("name"))
         ]
         return {"title": pc.get("name") or "Capabilities", "cards": cards}
     rows = []
     for p in content:
+        if _hidden(p.get("name")):
+            continue
         cells = [
             {"s": ph.get("s", "idle"), "p": ph.get("p", 0.0), "d": ph.get("d", 0)}
             for ph in p.get("phases", [])
