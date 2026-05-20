@@ -20,17 +20,48 @@
     "Deploy"
   ],
 
-  "ical_urls": [
+  "vikunja": {
+    "base_url": "",
+    "token": "",
+    "token_env": "VIKUNJA_TOKEN"
+  },
+
+  "lyteworks": {
+    "base_url": "",
+    "token": "",
+    "token_env": "LYTEWORKS_TOKEN"
+  },
+
+  "pages": [
     {
-      "url": "http://127.0.0.1:8181/sample.ics",
-      "category": 1,
-      "_comment_category": "1=Sync 2=Review 3=External 4=Field 5=Offsite — controls event color"
+      "id": "calendar-1",
+      "template": "calendar",
+      "name": "Calendar",
+      "ical_urls": [
+        { "url": "http://127.0.0.1:8181/sample.ics", "category": 1 }
+      ]
+    },
+    {
+      "id": "projects-1",
+      "template": "pseudo_gantt",
+      "local_json": "projects.json"
+    },
+    {
+      "id": "capabilities-1",
+      "template": "card",
+      "local_json": "capabilities.json"
     }
   ],
 
   "_notes": {
-    "ical_urls": "Each entry can be a plain URL string or an object {url, category}. Category controls the event color on the calendar (1-5). Remove the placeholder entry above and add your iCal URL(s).",
-    "countdown_target": "ISO 8601 date string, e.g. '2026-12-31'. Leave empty to hide countdown.",
-    "reload_interval_seconds": "How often the background thread refreshes iCal data. The UI 'Reload' button triggers an immediate refresh regardless of this interval."
+    "pages": "Each page = one View Template + one data source. Templates: 'calendar' (iCal-backed), 'card' (Vikunja Card View), 'pseudo_gantt' (Vikunja Project View), 'kanban' (Vikunja Kanban View — each subproject is a row showing its own kanban buckets as swimlanes; row width scales with the project's lane count up to a cap; an empty lane with no tasks in any preceding lane reads 'Completed'). You can add multiple pages per template. Pages render and rotate in array order.",
+    "page.id": "Stable identifier used for rotation order + tweaks. Optional; auto-generated if omitted.",
+    "page.name": "Overrides the page title. If omitted, the Vikunja project name is used (calendar defaults to 'Calendar').",
+    "card_and_pseudo_gantt_source": "Set 'vikunja_project_id' to the Vikunja project whose SUBPROJECTS populate the view. Card View = one card per subproject (tasks listed, completed/total counted). Project View = first subproject's tasks define the columns; every subproject is a row with cells aligned by task position showing completion. For an offline demo, use 'local_json' instead (projects.json / capabilities.json).",
+    "calendar_source": "Set 'ical_urls' (list of strings or {url, category, color, name} objects). category 1-5 controls event color: 1=Sync 2=Review 3=External 4=Field 5=Offsite. Optionally set 'color' (any CSS color, e.g. '#e8c547' or 'oklch(0.72 0.16 320)') and 'name' (legend label) on a source to override the category color/label for that calendar. Falls back to top-level 'ical_urls' if omitted.",
+    "vikunja": "base_url is the Vikunja host root (no /api/v1). Provide an API token via 'token' or, preferably, leave it blank and set the env var named by 'token_env'.",
+    "lyteworks": "base_url is the Course Architect / Lyteworks host root (no /api). 'token' is optional (left blank if the instance has no auth). A 'lyteworks' page needs 'lyteworks_course_id'. The view shows one row per module; each of the 5 production phases shows decks-complete / total decks, color-coded (green=all, amber=partial, grey=none). A lecture with no slide deck counts as one incomplete deck toward the totals.",
+    "countdown_target": "ISO 8601 date string, e.g. '2026-12-31'. Leave empty to hide the countdown on Project View. A page may override with its own 'countdown' object.",
+    "reload_interval_seconds": "How often the background thread refreshes all sources. The UI 'Reload' button forces an immediate refresh regardless."
   }
 }

@@ -1,11 +1,29 @@
-/* Calendar View — two-week grid + upcoming sidebar */
+/* Calendar View template — two-week grid + upcoming sidebar.
+   Source: a list of iCal feeds (per-page). */
 
-window.renderCalendarView = function(host) {
-  const events = window.DASHBOARD_EVENTS;
+(window.VIEW_TEMPLATES = window.VIEW_TEMPLATES || {}).calendar = function (host, data) {
+  data = data || {};
+  if (data.error) {
+    host.innerHTML = `<div class="cal"><div class="cal-main"><div class="cal-header">
+      <h2 class="cal-title">${data.title || "Calendar"}</h2>
+      <div class="cal-subtitle" style="color:var(--bad);">${data.error}</div>
+    </div></div></div>`;
+    return;
+  }
+
+  const events = (data.events || []).map((e) => ({
+    title: e.title,
+    start: e.start ? new Date(e.start) : null,
+    end: e.end ? new Date(e.end) : null,
+    loc: e.loc || "",
+    cat: e.cat || 1,
+    color: e.color || "",
+    catName: e.catName || "",
+  })).filter((e) => e.start);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Start on Sunday of current week
   const gridStart = new Date(today);
   gridStart.setDate(today.getDate() - today.getDay());
 
@@ -33,34 +51,30 @@ window.renderCalendarView = function(host) {
     return `${h}:${pad2(m)}${ap}`;
   };
 
-  // Header month range
   const first = cells[0], last = cells[cells.length - 1];
   const monthRange = first.getMonth() === last.getMonth()
     ? `${monthNames[first.getMonth()]} ${first.getFullYear()}`
     : `${monthNames[first.getMonth()]} – ${monthNames[last.getMonth()]} ${last.getFullYear()}`;
 
-  // Count totals
   const windowEnd = new Date(today); windowEnd.setDate(today.getDate() + 30);
-  const in30 = events.filter(e => e.start >= today && e.start <= windowEnd);
+  const in30 = events.filter((e) => e.start >= today && e.start <= windowEnd);
 
-  // Stats
-  const todayEvents = events.filter(e => sameDay(e.start, today));
+  const todayEvents = events.filter((e) => sameDay(e.start, today));
   const thisWeekEnd = new Date(today); thisWeekEnd.setDate(today.getDate() + (6 - today.getDay()));
-  const thisWeek = events.filter(e => e.start >= today && e.start <= thisWeekEnd);
-  const uniqueLocs = new Set(events.map(e => e.loc)).size;
+  const thisWeek = events.filter((e) => e.start >= today && e.start <= thisWeekEnd);
+  const uniqueLocs = new Set(events.map((e) => e.loc)).size;
 
-  // Build grid cell HTML
-  const cellHtml = cells.map(d => {
+  const cellHtml = cells.map((d) => {
     const dayEvents = events
-      .filter(e => sameDay(e.start, d))
+      .filter((e) => sameDay(e.start, d))
       .sort((a, b) => a.start - b.start);
 
     const isToday = sameDay(d, today);
     const isInMonth = d.getMonth() === today.getMonth();
     const cls = `cal-cell ${isToday ? "is-today" : ""} ${!isInMonth ? "is-other" : ""}`;
 
-    const evHtml = dayEvents.slice(0, 3).map(e => `
-      <div class="cal-event c-${e.cat}">
+    const evHtml = dayEvents.slice(0, 3).map((e) => `
+      <div class="cal-event c-${e.cat}"${e.color ? ` style="border-left-color:${e.color}"` : ""}>
         <span class="t">${fmtTime(e.start)}</span>
         <span>${e.title}</span>
       </div>
@@ -79,13 +93,15 @@ window.renderCalendarView = function(host) {
     `;
   }).join("");
 
-  // Upcoming sidebar — next 7 events from now
   const upcoming = events
-    .filter(e => e.start >= new Date())
+    .filter((e) => e.start >= new Date())
     .sort((a, b) => a.start - b.start)
     .slice(0, 8);
 
-  const upcomingHtml = upcoming.map(e => {
+  const catLabel = (c) =>
+    ({1:"SYNC",2:"REVIEW",3:"EXTERNAL",4:"FIELD",5:"OFFSITE"})[c] || "EVENT";
+
+  const upcomingHtml = upcoming.map((e) => {
     const isToday = sameDay(e.start, today);
     const dowShort = dowNames[e.start.getDay()];
     return `
@@ -102,7 +118,7 @@ window.renderCalendarView = function(host) {
             <span>${e.loc}</span>
           </div>
         </div>
-        <div class="cal-up-tag c-${e.cat}">${catLabel(e.cat)}</div>
+        <div class="cal-up-tag c-${e.cat}"${e.color ? ` style="border-color:${e.color};color:${e.color}"` : ""}>${e.catName || catLabel(e.cat)}</div>
       </div>
     `;
   }).join("");
@@ -111,12 +127,12 @@ window.renderCalendarView = function(host) {
     <div class="cal">
       <div class="cal-main">
         <div class="cal-header">
-          <h2 class="cal-title">Next <em>14</em> days</h2>
+          <h2 class="cal-title">${data.title || "Calendar"}</h2>
           <div class="cal-subtitle">${monthRange} · ${in30.length} events scheduled · 30-day window</div>
         </div>
 
         <div class="cal-grid">
-          ${dowNames.map(d => `<div class="cal-dow">${d}</div>`).join("")}
+          ${dowNames.map((d) => `<div class="cal-dow">${d}</div>`).join("")}
           ${cellHtml}
         </div>
       </div>
@@ -154,7 +170,3 @@ window.renderCalendarView = function(host) {
     </div>
   `;
 };
-
-function catLabel(c) {
-  return ({1:"SYNC",2:"REVIEW",3:"EXTERNAL",4:"FIELD",5:"OFFSITE"})[c] || "EVENT";
-}
